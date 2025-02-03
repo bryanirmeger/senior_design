@@ -1,1 +1,1 @@
-# senior_design
+# Targeted Intelligent Dust Elimination (TID-E)
