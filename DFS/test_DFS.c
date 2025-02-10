@@ -122,8 +122,8 @@ void test_update_node_two() {
     //create three nodes, node_left is to left of node_middle, node_right is to right of node_middle
     //should create 
     node* null_node = NULL;
-    node* node_middle = insert_node(&null_node, &null_node, &null_node, &null_node, false);
-    node* node_ = insert_node(&node_1, &null_node, &null_node, &null_node, true);
+    node* node_1 = insert_node(&null_node, &null_node, &null_node, &null_node, false);
+    node* node_2 = insert_node(&node_1, &null_node, &null_node, &null_node, true);
 
 
     //create header at node_1
