@@ -2,7 +2,54 @@
 #include <stdlib.h>
 #include "DFS.h"
 
-//functions
+//helper
+void set_node(node** center, node** up, node** down, node** left, node** right) {
+    (*center)->up = *up;
+    (*center)->down = *down;
+    (*center)->left = *left;
+    (*center)->right = *right;
+}
+
+node* update_node(node** l_node, enum DCTN direction) {
+    //if next node exists, update, if not create and link to last node
+    node* null_node = NULL;
+    node* next_node = NULL;
+    switch(direction) {
+        case UP:
+            if((*l_node)->up != NULL) {
+                next_node = (*l_node)->up;
+            }
+            else {
+                next_node = insert_node(&null_node, l_node, &null_node, &null_node, false);
+            }
+            break;
+        case DOWN:
+            if((*l_node)->down != NULL) {
+                next_node = (*l_node)->down;
+            }
+            else {
+                next_node = insert_node(l_node, &null_node, &null_node, &null_node, false);
+            }
+            break;
+        case LEFT:
+            if((*l_node)->left != NULL) {
+                next_node = (*l_node)->left;
+            }
+            else {
+                next_node = insert_node(&null_node, &null_node, &null_node, l_node, false);
+            }
+            break;
+        case RIGHT:
+            if((*l_node)->right != NULL) {
+                next_node = (*l_node)->right;
+            }
+            else {
+                next_node = insert_node(&null_node, &null_node, l_node, &null_node, false);
+            }
+            break;
+    }
+    return next_node;
+}
 
 //creates new node with passed addresses. Then, associates the other nodes with the new one
 node* insert_node(node** up, node** down, node** left, node** right, bool obstacle) {
@@ -32,62 +79,73 @@ node* insert_node(node** up, node** down, node** left, node** right, bool obstac
 }
 
 //deallocates single node
-void destroy_node(node** ref) {
+void destroy_node(node** ref_node) {
+    node* null_node = NULL;
     //desassociate node from all surronding nodes
-    if((*ref)->up != NULL){
-        (*ref)->up->down = NULL;
+    if(*ref_node != NULL) {
+        //get addresses of surrounding nodes
+        node* up = (*ref_node)->up;
+        node* down = (*ref_node)->down;
+        node* left = (*ref_node)->left;
+        node* right = (*ref_node)->right;
+
+        //deallocate node
+        free(*ref_node);
+
+        //set relevant node references to null
+        if(up != NULL){
+            (up->down) = null_node;
+        }
+        if(down != NULL){
+            (down->up) = null_node;
+        }
+        if(left != NULL){
+            (left->right) = null_node;
+        }
+        if(right != NULL){
+            right->left = null_node;
+        }
     }
-    if((*ref)->down != NULL){
-        (*ref)->down->up = NULL;
-    }
-    if((*ref)->left != NULL){
-        (*ref)->left->right = NULL;
-    }
-    if((*ref)->right != NULL){
-        (*ref)->right->left = NULL;
-    }
-    //deallocate node
-    free(*ref);
 }
 
-node* update_node(node** l_node, enum DCTN direction) {
-    //if next node exists, update, if not create and link to last node
-    node* next_node = NULL;
+node* update_tracked_nodes(node** c_node, enum DCTN direction) {
+    node* up = (*c_node)->up;
+    node* down = (*c_node)->down;
+    node* left = (*c_node)->left;
+    node* right = (*c_node)->right;
+
+    //update nodes around the current position. if null, dont bother updating
+    if(up != NULL) {
+        up = update_node(&up, direction);
+    }
+    if(down != NULL) {
+        down = update_node(&down, direction);
+    }
+    if(left != NULL) {
+        left = update_node(&left, direction);
+    }
+    if(right != NULL) {
+        right = update_node(&right, direction);
+    }
+
+    node* new_c_node = NULL;
+    //set surrounding nodes to current node and sets last value in opposite direction to be last value
     switch(direction) {
         case UP:
-            if((*l_node)->up != NULL) {
-                next_node = (*l_node)->up;
-            }
-            else {
-                next_node = insert_node(NULL, l_node, NULL, NULL, false);
-            }
-            break;
+            new_c_node = insert_node(&up, c_node, &left, &right, false);
+        break;
         case DOWN:
-            if((*l_node)->down != NULL) {
-                next_node = (*l_node)->down;
-            }
-            else {
-                next_node = insert_node(l_node, NULL, NULL, NULL, false);
-            }
-            break;
+            new_c_node = insert_node(c_node, &down, &left, &right, false);
+        break;
         case LEFT:
-            if((*l_node)->left != NULL) {
-                next_node = (*l_node)->left;
-            }
-            else {
-                next_node = insert_node(NULL, NULL, NULL, l_node, false);
-            }
-            break;
+           new_c_node = insert_node(&up, &down, &left, c_node, false);
+        break;
         case RIGHT:
-            if((*l_node)->right != NULL) {
-                next_node = (*l_node)->right;
-            }
-            else {
-                next_node = insert_node(NULL, NULL, l_node, NULL, false);
-            }
-            break;
+            new_c_node = insert_node(&up, &down, c_node, &right, false);
+        break;
     }
-    return next_node;
+
+    return new_c_node;
 }
 
 //creates a new node and fits it into map

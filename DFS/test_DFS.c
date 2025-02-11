@@ -119,40 +119,41 @@ void test_update_node_one() {
 }
 
 void test_update_node_two() {
-    //create three nodes, node_left is to left of node_middle, node_right is to right of node_middle
-    //should create 
+    //create three nodes, node_c is center, node-r is to the right of node_c
     node* null_node = NULL;
-    node* node_1 = insert_node(&null_node, &null_node, &null_node, &null_node, false);
-    node* node_2 = insert_node(&node_1, &null_node, &null_node, &null_node, true);
+    node* node_c = insert_node(&null_node, &null_node, &null_node, &null_node, false);
+    node* node_r = insert_node(&null_node, &null_node, &node_c, &null_node, true);
 
+    //nodes should be attached to each other with insert_node
 
     //create header at node_1
-    node* move_node = node_1;
-    move_node = update_node(&move_node, DOWN);
+    node* move_node = node_c;
+    move_node = update_tracked_nodes(&move_node, DOWN);
 
     //tests
     printf(ANSI_COLOR_RESET "\n");
 
     //sanity check, make sure they linked
-    if((node_1->down == node_2) || (node_2->up == node_1)) {
-        printf(ANSI_COLOR_GREEN "Test Passed: %s\n", __func__);
-    }
-    else if((node_1->down != node_2) || (node_2->up != node_1)) {
-        printf(ANSI_COLOR_RED "Test Failed: %s\n", __func__);
-    }
-
-    if(move_node == node_2) {
+    if((move_node->right == node_r->down) && (node_r->down->left == move_node)) { 
         printf(ANSI_COLOR_GREEN "Test Passed: %s\n", __func__);
     }
     else {
         printf(ANSI_COLOR_RED "Test Failed: %s\n", __func__);
     }
-
+    if((node_c->right == node_r) && (node_r->left == node_c) && (node_c->down == move_node) && (move_node->up == node_c)) {
+        printf(ANSI_COLOR_GREEN "Test Passed: %s\n", __func__);
+    }
+    else {
+        printf(ANSI_COLOR_RED "Test Failed: %s\n", __func__);
+    }
+    
     printf(ANSI_COLOR_RESET "\n");
 
     //deallocate memory
-    destroy_node(&node_1);
-    destroy_node(&node_2);
+    destroy_node(&node_c);
+    destroy_node(&node_r);
+    destroy_node(&(move_node->right));
+    destroy_node(&move_node);
 }
 
 //main
