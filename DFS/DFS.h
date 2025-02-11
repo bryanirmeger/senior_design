@@ -22,10 +22,12 @@ typedef struct _NODE node;
 
 //functions
 void set_node(node** center, node** up, node** down, node** left, node** right);
-node* insert_node(node** up, node** down, node** left, node** right, bool obstacle);
+void dissociate_node(node** head);
+node* insert_node(node** up, node** down, node** left, node** right, bool obstacle, float x_y[]);
 void destroy_node(node** node);
 node* update_node(node** l_node, enum DCTN direction);
 node* update_tracked_nodes(node** c_node, enum DCTN direction);
+void destroy_map(node** head);
 node* map(node** l_up, node** l_down, node** l_left, node** l_right, enum DCTN direction);
 
 #endif

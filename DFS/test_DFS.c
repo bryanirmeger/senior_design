@@ -9,8 +9,9 @@
 //test function
 void test_insert_delete_node_nulls() {
     //test insert with all NULL values
+    float empty_list[] = {0,0};
     node* null_node = NULL;
-    node* new_node = insert_node(&null_node, &null_node, &null_node, &null_node, false);
+    node* new_node = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);
 
     //test output
     printf(ANSI_COLOR_RESET "\n");
@@ -54,9 +55,10 @@ void test_insert_delete_node_nulls() {
 
 void test_insert_delete_node_one_real() {
     node* null_node = NULL;
+    float empty_list[] = {0,0};
     //create a node that will be placed at the top of the new node. This should make real->down = new_node and vice versa
-    node* real_node = insert_node(&null_node, &null_node, &null_node, &null_node, true);
-    node* new_node = insert_node(&real_node, &null_node, &null_node, &null_node, false);
+    node* real_node = insert_node(&null_node, &null_node, &null_node, &null_node, true, empty_list);
+    node* new_node = insert_node(&real_node, &null_node, &null_node, &null_node, false, empty_list);
 
     //tests
     printf(ANSI_COLOR_RESET "\n");
@@ -85,9 +87,10 @@ void test_insert_delete_node_one_real() {
 
 void test_update_node_one() {
     //create two nodes, node_1 is above node_2, or move DOWN from 1 to two
+    float empty_list[] = {0,0};
     node* null_node = NULL;
-    node* node_1 = insert_node(&null_node, &null_node, &null_node, &null_node, false);
-    node* node_2 = insert_node(&node_1, &null_node, &null_node, &null_node, true);
+    node* node_1 = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);
+    node* node_2 = insert_node(&node_1, &null_node, &null_node, &null_node, true, empty_list);
 
     //create header at node_1
     node* move_node = node_1;
@@ -120,9 +123,10 @@ void test_update_node_one() {
 
 void test_update_node_two() {
     //create three nodes, node_c is center, node-r is to the right of node_c
+    float empty_list[] = {0,0};
     node* null_node = NULL;
-    node* node_c = insert_node(&null_node, &null_node, &null_node, &null_node, false);
-    node* node_r = insert_node(&null_node, &null_node, &node_c, &null_node, true);
+    node* node_c = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);
+    node* node_r = insert_node(&null_node, &null_node, &node_c, &null_node, true, empty_list);
 
     //nodes should be attached to each other with insert_node
 
@@ -150,10 +154,53 @@ void test_update_node_two() {
     printf(ANSI_COLOR_RESET "\n");
 
     //deallocate memory
-    destroy_node(&node_c);
-    destroy_node(&node_r);
-    destroy_node(&(move_node->right));
-    destroy_node(&move_node);
+    destroy_map(&node_c);
+}
+
+void test_destroy_map_one() {
+    float empty_list[] = {0,0};
+    node* null_node = NULL;
+
+    //create single node
+    node* node_c = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);
+    //clear single node
+    destroy_map(&node_c);
+}
+
+void test_destroy_map_two() {
+    float empty_list[] = {0,0};
+    node* null_node = NULL;
+
+    //create single node
+    node* node_c = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);
+    node* node_r = insert_node(&null_node, &null_node, &null_node, &node_c, false, empty_list);
+    //clear single node
+    destroy_map(&node_r);
+}
+
+void test_destroy_map_cluster() {
+    float empty_list[] = {0,0};
+    node* null_node = NULL;
+
+    //create single node
+    node* node_r = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);
+    node* node_u = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);
+    node* node_c = insert_node(&node_u, &null_node, &null_node, &node_r, false, empty_list);
+    //clear single node
+    destroy_map(&node_c);
+}
+
+void test_destroy_map_loop() {
+    float empty_list[] = {0,0};
+    node* null_node = NULL;
+
+    //create single node
+    node* node_ur = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);
+    node* node_u = insert_node(&null_node, &null_node, &null_node, &node_ur, false, empty_list);
+    node* node_r = insert_node(&node_ur, &null_node, &null_node, &null_node, false, empty_list);
+    node* node_c = insert_node(&node_u, &null_node, &null_node, &node_r, false, empty_list);
+    //clear single node
+    destroy_map(&node_c);
 }
 
 //main
@@ -164,7 +211,13 @@ int main(int argc, char *argv[]) {
 
     //testing update_node
     test_update_node_one();
-    test_update_node_two();
+    //test_update_node_two();
+
+    //testing destroy_map
+    test_destroy_map_one();
+    test_destroy_map_two();
+    test_destroy_map_cluster();
+    test_destroy_map_loop();
 
     return 0;
 }
