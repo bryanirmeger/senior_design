@@ -82,28 +82,12 @@ void destroy_node(node** ref_node) {
     node* null_node = NULL;
     //desassociate node from all surronding nodes
     if(*ref_node != NULL) {
-        //get addresses of surrounding nodes
-        node* up = (*ref_node)->up;
-        node* down = (*ref_node)->down;
-        node* left = (*ref_node)->left;
-        node* right = (*ref_node)->right;
+        //disociate_nodes from surrounding nodes
+        //dissociate_node(ref_node);
 
         //deallocate node
         free(*ref_node);
-
-        //set relevant node references to null
-        if(up != NULL){
-            (up->down) = null_node;
-        }
-        if(down != NULL){
-            (down->up) = null_node;
-        }
-        if(left != NULL){
-            (left->right) = null_node;
-        }
-        if(right != NULL){
-            right->left = null_node;
-        }
+        *ref_node = null_node;
     }
 }
 
@@ -117,6 +101,7 @@ node* insert_node(node** up, node** down, node** left, node** right, bool obstac
     new_node->left = *left;
     new_node->right = *right;
     new_node->obstacle = obstacle;
+    new_node->traversed = false;
     //set data for other nodes. check if null, first
     if(*up != NULL) {
         (*up)->down = new_node;
@@ -176,32 +161,25 @@ node* update_tracked_nodes(node** c_node, enum DCTN direction) {
     return new_c_node;
 }
 
-//destory all nodes attached to head
+//destroy all nodes attached to head
 void destroy_map(node** head) {
-    //save surrounding nodes addresses
-    node* up = (*head)->up;
-    node* down = (*head)->down;
-    node* left = (*head)->left;
-    node* right = (*head)->right;
-
-    //if head isn't null, destroy head
-    //then call recursive function to go down other branches
     if(*head != NULL) {
-        dissociate_node(head);
-        if(up != NULL) {
-            destroy_map(&up);
+        (*head)->traversed = true;
+        if(((*head)->up != NULL) && (((*head)->up)->traversed == false)) {
+            destroy_map(&((*head)->up));
         }
-        if(down != NULL) {
-            destroy_map(&down);
+        if(((*head)->down != NULL) && (((*head)->down)->traversed == false)) {
+            destroy_map(&((*head)->down));
         }
-        if(left != NULL) {
-            destroy_map(&left);
+        if(((*head)->left != NULL) && (((*head)->left)->traversed == false)) {
+            destroy_map(&((*head)->left));
         }
-        if(right != NULL) {
-            destroy_map(&right);
+        if(((*head)->right != NULL) && (((*head)->right)->traversed == false)) {
+            destroy_map(&((*head)->right));
         }
         destroy_node(head);
     }
+   
 }
 
 //creates a new node and fits it into map

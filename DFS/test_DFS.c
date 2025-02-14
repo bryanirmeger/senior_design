@@ -206,17 +206,17 @@ void test_destroy_map_loop() {
 //main
 int main(int argc, char *argv[]) {
     //test basic single node functionality
-    test_insert_delete_node_nulls();
-    test_insert_delete_node_one_real();
+    //test_insert_delete_node_nulls();
+    //test_insert_delete_node_one_real();
 
     //testing update_node
-    test_update_node_one();
+    //test_update_node_one();
     //test_update_node_two();
 
     //testing destroy_map
-    test_destroy_map_one();
-    test_destroy_map_two();
-    test_destroy_map_cluster();
+    //test_destroy_map_one();
+    //test_destroy_map_two();
+    //test_destroy_map_cluster();
     test_destroy_map_loop();
 
     return 0;

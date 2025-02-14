@@ -12,6 +12,7 @@ enum DCTN {
 //structs
 struct _NODE {
     bool obstacle;
+    bool traversed;
     float x_y[2];
     struct _NODE* up;
     struct _NODE* down;
