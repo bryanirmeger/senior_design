@@ -179,7 +179,6 @@ void destroy_map(node** head) {
         }
         destroy_node(head);
     }
-   
 }
 
 //creates a new node and fits it into map
