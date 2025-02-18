@@ -23,7 +23,7 @@ typedef struct _NODE node;
 
 //functions
 void set_node(node** center, node** up, node** down, node** left, node** right);
-void dissociate_node(node** head);
+void destroy_row_and_above(node** node);
 node* insert_node(node** up, node** down, node** left, node** right, bool obstacle, float x_y[]);
 void destroy_node(node** node);
 node* update_node(node** l_node, enum DCTN direction);

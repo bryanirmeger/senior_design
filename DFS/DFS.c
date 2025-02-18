@@ -10,27 +10,28 @@ void set_node(node** center, node** up, node** down, node** left, node** right) 
     (*center)->right = *right;
 }
 
-void dissociate_node(node** ref_node) {
-    node* null_node = NULL;
-    if(*ref_node != NULL) {
-        //get addresses of surrounding nodes
-        node* up = (*ref_node)->up;
-        node* down = (*ref_node)->down;
-        node* left = (*ref_node)->left;
-        node* right = (*ref_node)->right;
+void destroy_row_and_above(node** header) {
+    //get intial starting values
+    node* start = *header;
+    node* next = start->right;
+    node* up = start->up;
 
-        //set relevant node references to null
-        if(up != NULL){
-            (up->down) = null_node;
+    while(start->left != NULL) {
+        start = start->left;
+    }
+
+    while(start != NULL) {
+        //destroy start
+        destroy_node(&start);
+        //check if up is null
+        if(up != NULL) {
+            destroy_row_and_above(&up);
         }
-        if(down != NULL){
-            (down->up) = null_node;
-        }
-        if(left != NULL){
-            (left->right) = null_node;
-        }
-        if(right != NULL){
-            right->left = null_node;
+        //update values
+        start = next;
+        if(start != NULL) {
+            next = start->right;
+            up = start->up;
         }
     }
 }
@@ -84,6 +85,25 @@ void destroy_node(node** ref_node) {
     if(*ref_node != NULL) {
         //disociate_nodes from surrounding nodes
         //dissociate_node(ref_node);
+            //get addresses of surrounding nodes
+        node* up = (*ref_node)->up;
+        node* down = (*ref_node)->down;
+        node* left = (*ref_node)->left;
+        node* right = (*ref_node)->right;
+    
+            //set relevant node references to null
+        if(up != NULL){
+            (up->down) = null_node;
+        }
+        if(down != NULL){
+            (down->up) = null_node;
+        }
+        if(left != NULL){
+            (left->right) = null_node;
+        }
+        if(right != NULL){
+            right->left = null_node;
+        }
 
         //deallocate node
         free(*ref_node);
@@ -162,23 +182,34 @@ node* update_tracked_nodes(node** c_node, enum DCTN direction) {
 }
 
 //destroy all nodes attached to head
+//idea is to move left from each row 
 void destroy_map(node** head) {
-    if(*head != NULL) {
-        (*head)->traversed = true;
-        if(((*head)->up != NULL) && (((*head)->up)->traversed == false)) {
-            destroy_map(&((*head)->up));
-        }
-        if(((*head)->down != NULL) && (((*head)->down)->traversed == false)) {
-            destroy_map(&((*head)->down));
-        }
-        if(((*head)->left != NULL) && (((*head)->left)->traversed == false)) {
-            destroy_map(&((*head)->left));
-        }
-        if(((*head)->right != NULL) && (((*head)->right)->traversed == false)) {
-            destroy_map(&((*head)->right));
-        }
-        destroy_node(head);
+    node* start = *head;
+    node* next = start->right;
+    node* up = start->up;
+
+    //move to left most node of row
+    while(start->left != NULL) {
+        start = start->left;
     }
+    //save row below leftmost row node
+    node* next_row = start->down;
+
+    //go down row and delete 
+    while(start != NULL) {
+        //destroy start
+        destroy_node(&start);
+        //check if up is null
+        if(up != NULL) {
+            destroy_row_and_above(&up);
+        }
+        //update values
+        start = next;
+        next = start->right;
+        up = start->up;
+    }
+    destroy_map(&next_row);
+
 }
 
 //creates a new node and fits it into map

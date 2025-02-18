@@ -203,6 +203,80 @@ void test_destroy_map_loop() {
     destroy_map(&node_c);
 }
 
+void test_destroy_node_and_above_one() {
+    float empty_list[] = {0,0};
+    node* null_node = NULL;
+    //create node
+    node* c = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);   
+
+    destroy_row_and_above(&c);
+}
+
+void test_destroy_node_and_above_two() {
+    float empty_list[] = {0,0};
+    node* null_node = NULL;
+    //create node
+    node* n_2 = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);   
+    node* head = insert_node(&null_node, &null_node, &null_node, &n_2, false, empty_list);
+
+    destroy_row_and_above(&head);
+}
+
+void test_destroy_node_and_above_one_row() {
+    float empty_list[] = {0,0};
+    node* null_node = NULL;
+    //create row of nodes
+    node* n_7 = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);  
+    node* n_6 = insert_node(&null_node, &null_node, &null_node, &n_7, false, empty_list);  
+    node* n_5 = insert_node(&null_node, &null_node, &null_node, &n_6, false, empty_list);  
+    node* n_4 = insert_node(&null_node, &null_node, &null_node, &n_5, false, empty_list);  
+    node* n_3 = insert_node(&null_node, &null_node, &null_node, &n_4, false, empty_list);  
+    node* n_2 = insert_node(&null_node, &null_node, &null_node, &n_3, false, empty_list);   
+    node* head = insert_node(&null_node, &null_node, &null_node, &n_2, false, empty_list);
+
+    destroy_row_and_above(&head);
+}
+
+void test_destroy_node_and_above_one_row_one_above() {
+    float empty_list[] = {0,0};
+    node* null_node = NULL;
+    //create row of nodes
+    node* uun_1 = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list); 
+    node* un_2 = insert_node(&uun_1, &null_node, &null_node, &null_node, false, empty_list); 
+    node* un_1 = insert_node(&null_node, &null_node, &null_node, &un_2, false, empty_list); 
+    node* n_7 = insert_node(&un_2, &null_node, &null_node, &null_node, false, empty_list);  
+    node* n_6 = insert_node(&un_1, &null_node, &null_node, &n_7, false, empty_list);    
+    node* head = insert_node(&null_node, &null_node, &null_node, &n_6, false, empty_list);
+
+    destroy_row_and_above(&head);
+}
+
+void test_destroy_node_and_above_alot() {
+    float empty_list[] = {0,0};
+    node* null_node = NULL;
+
+    node* uuuun_1 = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);
+    
+    node* uuun_2 = insert_node(&uuuun_1, &null_node, &null_node, &null_node, false, empty_list);
+    node* uuun_1 = insert_node(&null_node, &null_node, &null_node, &uuun_2, false, empty_list);
+
+    node* uun_1 = insert_node(&uuun_1, &null_node, &null_node, &null_node, false, empty_list);
+
+    node* un_5 = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);
+    node* un_4 = insert_node(&null_node, &null_node, &null_node, &un_5, false, empty_list);
+    node* un_3 = insert_node(&null_node, &null_node, &null_node, &un_4, false, empty_list);
+    node* un_2 = insert_node(&uun_1, &null_node, &null_node, &un_3, false, empty_list);
+
+    node* un_1 = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);
+
+    node* n_4 = insert_node(&un_3, &null_node, &null_node, &null_node, false, empty_list); 
+    node* n_3 = insert_node(&un_2, &null_node, &null_node, &n_4, false, empty_list);  
+    node* n_2 = insert_node(&null_node, &null_node, &null_node, &n_3, false, empty_list);    
+    node* head = insert_node(&un_1, &null_node, &null_node, &n_2, false, empty_list);
+
+    destroy_row_and_above(&head);
+}
+
 //main
 int main(int argc, char *argv[]) {
     //test basic single node functionality
@@ -217,7 +291,13 @@ int main(int argc, char *argv[]) {
     //test_destroy_map_one();
     //test_destroy_map_two();
     //test_destroy_map_cluster();
-    test_destroy_map_loop();
+    //test_destroy_map_loop();
+
+    //test_destroy_node_and_above_one();
+    //test_destroy_node_and_above_two();
+    //test_destroy_node_and_above_one_row();
+    //test_destroy_node_and_above_one_row_one_above();
+    test_destroy_node_and_above_alot();
 
     return 0;
 }
