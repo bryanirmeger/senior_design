@@ -165,6 +165,9 @@ void test_destroy_map_one() {
     node* node_c = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);
     //clear single node
     destroy_map(&node_c);
+
+    printf(ANSI_COLOR_GREEN "Test Passed: %s\n", __func__);
+    printf(ANSI_COLOR_RESET "\n");
 }
 
 void test_destroy_map_two() {
@@ -176,6 +179,9 @@ void test_destroy_map_two() {
     node* node_r = insert_node(&null_node, &null_node, &null_node, &node_c, false, empty_list);
     //clear single node
     destroy_map(&node_r);
+
+    printf(ANSI_COLOR_GREEN "Test Passed: %s\n", __func__);
+    printf(ANSI_COLOR_RESET "\n");
 }
 
 void test_destroy_map_cluster() {
@@ -188,6 +194,9 @@ void test_destroy_map_cluster() {
     node* node_c = insert_node(&node_u, &null_node, &null_node, &node_r, false, empty_list);
     //clear single node
     destroy_map(&node_c);
+
+    printf(ANSI_COLOR_GREEN "Test Passed: %s\n", __func__);
+    printf(ANSI_COLOR_RESET "\n");
 }
 
 void test_destroy_map_loop() {
@@ -201,6 +210,38 @@ void test_destroy_map_loop() {
     node* node_c = insert_node(&node_u, &null_node, &null_node, &node_r, false, empty_list);
     //clear single node
     destroy_map(&node_c);
+
+    printf(ANSI_COLOR_GREEN "Test Passed: %s\n", __func__);
+    printf(ANSI_COLOR_RESET "\n");
+}
+
+void test_destroy_map_alot() {
+    float empty_list[] = {0,0};
+    node* null_node = NULL;
+
+    node* uuuun_1 = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);
+    
+    node* uuun_2 = insert_node(&uuuun_1, &null_node, &null_node, &null_node, false, empty_list);
+    node* uuun_1 = insert_node(&null_node, &null_node, &null_node, &uuun_2, false, empty_list);
+
+    node* uun_1 = insert_node(&uuun_1, &null_node, &null_node, &null_node, false, empty_list);
+
+    node* un_5 = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);
+    node* un_4 = insert_node(&null_node, &null_node, &null_node, &un_5, false, empty_list);
+    node* un_3 = insert_node(&null_node, &null_node, &null_node, &un_4, false, empty_list);
+    node* un_2 = insert_node(&uun_1, &null_node, &null_node, &un_3, false, empty_list);
+
+    node* un_1 = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);
+
+    node* n_4 = insert_node(&un_3, &null_node, &null_node, &null_node, false, empty_list); 
+    node* n_3 = insert_node(&un_2, &null_node, &null_node, &n_4, false, empty_list);  
+    node* n_2 = insert_node(&null_node, &null_node, &null_node, &n_3, false, empty_list);    
+    node* head = insert_node(&un_1, &null_node, &null_node, &n_2, false, empty_list);
+
+    destroy_map(&head);
+
+    printf(ANSI_COLOR_GREEN "Test Passed: %s\n", __func__);
+    printf(ANSI_COLOR_RESET "\n");
 }
 
 void test_destroy_node_and_above_one() {
@@ -210,6 +251,9 @@ void test_destroy_node_and_above_one() {
     node* c = insert_node(&null_node, &null_node, &null_node, &null_node, false, empty_list);   
 
     destroy_row_and_above(&c);
+
+    printf(ANSI_COLOR_GREEN "Test Passed: %s\n", __func__);
+    printf(ANSI_COLOR_RESET "\n");
 }
 
 void test_destroy_node_and_above_two() {
@@ -220,6 +264,9 @@ void test_destroy_node_and_above_two() {
     node* head = insert_node(&null_node, &null_node, &null_node, &n_2, false, empty_list);
 
     destroy_row_and_above(&head);
+
+    printf(ANSI_COLOR_GREEN "Test Passed: %s\n", __func__);
+    printf(ANSI_COLOR_RESET "\n");
 }
 
 void test_destroy_node_and_above_one_row() {
@@ -235,6 +282,9 @@ void test_destroy_node_and_above_one_row() {
     node* head = insert_node(&null_node, &null_node, &null_node, &n_2, false, empty_list);
 
     destroy_row_and_above(&head);
+
+    printf(ANSI_COLOR_GREEN "Test Passed: %s\n", __func__);
+    printf(ANSI_COLOR_RESET "\n");
 }
 
 void test_destroy_node_and_above_one_row_one_above() {
@@ -249,6 +299,9 @@ void test_destroy_node_and_above_one_row_one_above() {
     node* head = insert_node(&null_node, &null_node, &null_node, &n_6, false, empty_list);
 
     destroy_row_and_above(&head);
+
+    printf(ANSI_COLOR_GREEN "Test Passed: %s\n", __func__);
+    printf(ANSI_COLOR_RESET "\n");
 }
 
 void test_destroy_node_and_above_alot() {
@@ -275,28 +328,32 @@ void test_destroy_node_and_above_alot() {
     node* head = insert_node(&un_1, &null_node, &null_node, &n_2, false, empty_list);
 
     destroy_row_and_above(&head);
+
+    printf(ANSI_COLOR_GREEN "Test Passed: %s\n", __func__);
+    printf(ANSI_COLOR_RESET "\n");
 }
 
 //main
 int main(int argc, char *argv[]) {
     //test basic single node functionality
-    //test_insert_delete_node_nulls();
-    //test_insert_delete_node_one_real();
+    test_insert_delete_node_nulls();
+    test_insert_delete_node_one_real();
 
     //testing update_node
-    //test_update_node_one();
-    //test_update_node_two();
+    test_update_node_one();
+    test_update_node_two();
 
     //testing destroy_map
-    //test_destroy_map_one();
-    //test_destroy_map_two();
-    //test_destroy_map_cluster();
-    //test_destroy_map_loop();
+    test_destroy_map_one();
+    test_destroy_map_two();
+    test_destroy_map_cluster();
+    test_destroy_map_loop();
+    test_destroy_map_alot();
 
-    //test_destroy_node_and_above_one();
-    //test_destroy_node_and_above_two();
-    //test_destroy_node_and_above_one_row();
-    //test_destroy_node_and_above_one_row_one_above();
+    test_destroy_node_and_above_one();
+    test_destroy_node_and_above_two();
+    test_destroy_node_and_above_one_row();
+    test_destroy_node_and_above_one_row_one_above();
     test_destroy_node_and_above_alot();
 
     return 0;

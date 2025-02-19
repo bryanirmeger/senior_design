@@ -205,10 +205,14 @@ void destroy_map(node** head) {
         }
         //update values
         start = next;
-        next = start->right;
-        up = start->up;
+        if(start != NULL) {
+            next = start->right;
+            up = start->up;
+        }
     }
-    destroy_map(&next_row);
+    if(next_row != NULL) {
+        destroy_map(&next_row);
+    }
 
 }
 
