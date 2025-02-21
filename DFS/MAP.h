@@ -8,10 +8,10 @@ typedef struct _MAP {
     node* header;
     float* data_x;
     float* data_y;
-    
-} map;
+
+}map;
 
 //functions
-map* make_map(float data_x[], float data_y[]);
+map* make_map(float* data_x, float* data_y, bool* data_obs);
 
 #endif

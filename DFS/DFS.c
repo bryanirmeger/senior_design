@@ -3,11 +3,9 @@
 #include "DFS.h"
 
 //helper
-void set_node(node** center, node** up, node** down, node** left, node** right) {
-    (*center)->up = *up;
-    (*center)->down = *down;
-    (*center)->left = *left;
-    (*center)->right = *right;
+void set_node(node** head, bool obstacle, float* x_y) {
+    (*head)->obstacle = obstacle;
+    (*head)->x_y = x_y;
 }
 
 void destroy_row_and_above(node** header) {
@@ -112,7 +110,7 @@ void destroy_node(node** ref_node) {
 }
 
 //creates new node with passed addresses. Then, associates the other nodes with the new one
-node* insert_node(node** up, node** down, node** left, node** right, bool obstacle, float x_y[]) {
+node* insert_node(node** up, node** down, node** left, node** right, bool obstacle, float* x_y) {
     //create node
     node* new_node = malloc(sizeof(*new_node));
     //set directional nodes for new node
@@ -120,8 +118,7 @@ node* insert_node(node** up, node** down, node** left, node** right, bool obstac
     new_node->down = *down;
     new_node->left = *left;
     new_node->right = *right;
-    new_node->obstacle = obstacle;
-    new_node->traversed = false;
+    set_node(&new_node, obstacle, x_y);
     //set data for other nodes. check if null, first
     if(*up != NULL) {
         (*up)->down = new_node;
@@ -214,9 +211,4 @@ void destroy_map(node** head) {
         destroy_map(&next_row);
     }
 
-}
-
-//creates a new node and fits it into map
-node* map(node** l_up, node** l_down, node** l_left, node** l_right, enum DCTN direction) {
-    return 0;
 }
