@@ -2,12 +2,27 @@
 #include <stdlib.h>
 #include "MAP.h"
 
-//helper
+//simulation helper functions
+
+//update obstacle and position data as if hardware were changing it
+void update_data_ptr(bool* obstacle_list, float (*x_y)[2]) {
+    //update list to next value in the list. Assuming list is 10 values deep just for testing
+    for(int i = 0; i < 9; i++) {
+        obstacle_list[i] = obstacle_list[i+1];
+        x_y[i][0] = x_y[i+1][0];
+        x_y[i][1] = x_y[i+1][1];
+    }
+}
+
+//helpers
+
+//set obstacle and x_y values in a node struct
 void set_node(node** head, bool obstacle, float* x_y) {
     (*head)->obstacle = obstacle;
     (*head)->x_y = x_y;
 }
 
+//free entire row and each node above a header
 void destroy_row_and_above(node** header) {
     //get intial starting values
     node* start = *header;
@@ -34,6 +49,7 @@ void destroy_row_and_above(node** header) {
     }
 }
 
+//set head of process to the next node in some direction. if this node does not exist, create a new node
 node* update_node(node** l_node, enum DCTN direction) {
     //if next node exists, update, if not create and link to last node
     float empty_list[] = {0,0};
@@ -109,6 +125,8 @@ void destroy_node(node** ref_node) {
     }
 }
 
+//functions 
+
 //creates new node with passed addresses. Then, associates the other nodes with the new one
 node* insert_node(node** up, node** down, node** left, node** right, bool obstacle, float* x_y) {
     //create node
@@ -179,7 +197,6 @@ node* update_tracked_nodes(node** c_node, enum DCTN direction) {
 }
 
 //destroy all nodes attached to head
-//idea is to move left from each row 
 void destroy_map(node** head) {
     node* start = *head;
     node* next = start->right;

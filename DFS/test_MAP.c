@@ -413,6 +413,44 @@ void test_set_node_through_insert_node() {
     destroy_map(&n);
 }
 
+void test_update_data_ptr_pass_data() {
+    //create test data
+    float data_x_y[10][2] = {{0,0},{0,1},{0,2}, {0,3},{0,4},{0,5}, {0,6},{0,7},{0,8}, {0,9}};
+    bool data_obs[10] = {false, false, false, false, false, false, false, false, false, false};
+
+    if((data_x_y[0][0] == 0) && (data_x_y[0][1] == 0)) { 
+        printf(ANSI_COLOR_GREEN "Test Passed: %s\n", __func__);
+    }
+    else {
+        printf(ANSI_COLOR_RED "Test Failed: %s\n", __func__);
+    }
+
+    update_data_ptr(data_obs, data_x_y);
+    //1
+    update_data_ptr(data_obs, data_x_y);
+    //2
+    update_data_ptr(data_obs, data_x_y);
+    //3
+    update_data_ptr(data_obs, data_x_y);
+    //4
+    update_data_ptr(data_obs, data_x_y);
+    //5
+    update_data_ptr(data_obs, data_x_y);
+    //6
+    update_data_ptr(data_obs, data_x_y);
+    //7
+    update_data_ptr(data_obs, data_x_y);
+    //8
+    update_data_ptr(data_obs, data_x_y);
+    //9
+    if((data_x_y[0][0] == 0) && (data_x_y[0][1] == 9)) { 
+        printf(ANSI_COLOR_GREEN "Test Passed: %s\n", __func__);
+    }
+    else {
+        printf(ANSI_COLOR_RED "Test Failed: %s\n", __func__);
+    }
+}
+
 //main
 int main(int argc, char *argv[]) {
     //test basic single node functionality
@@ -440,6 +478,9 @@ int main(int argc, char *argv[]) {
     //test new set_node functionality
     test_set_node_direct();
     test_set_node_through_insert_node();
+
+    //test simulation funcs
+    test_update_data_ptr_pass_data();
 
     return 0;
 }

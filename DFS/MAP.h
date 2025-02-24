@@ -29,6 +29,7 @@ typedef struct _MAP {
 }map;
 
 //functions
+void update_data_ptr(bool (*obstacle_list), float (*x_y)[2]);
 void set_node(node** head, bool obstacle, float* x_y);
 void destroy_row_and_above(node** node);
 node* insert_node(node** up, node** down, node** left, node** right, bool obstacle, float* x_y);
