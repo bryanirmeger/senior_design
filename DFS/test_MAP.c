@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include "DFS.h"
 #include "MAP.h"
 
 #define ANSI_COLOR_RED     "\x1b[31m"
