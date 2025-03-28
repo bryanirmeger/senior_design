@@ -1,0 +1,12 @@
+../Core/Src/main.c:80:5:main	1
+../Core/Src/main.c:138:6:SystemClock_Config	3
+../Core/Src/main.c:180:13:MX_TIM1_Init	6
+../Core/Src/main.c:239:13:MX_UART4_Init	2
+../Core/Src/main.c:272:13:MX_DMA_Init	1
+../Core/Src/main.c:290:13:MX_GPIO_Init	1
+../Core/Src/main.c:318:6:w_calc	5
+../Core/Src/main.c:350:6:TIM1_Start_IC	1
+../Core/Src/main.c:354:6:HAL_TIM_IC_CaptureCallback	4
+../Core/Src/main.c:373:6:HAL_UART_txCPltCallback	1
+../Core/Src/main.c:381:6:MPU_Config	1
+../Core/Src/main.c:412:6:Error_Handler	1
