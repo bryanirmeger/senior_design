@@ -102,7 +102,7 @@ void Interpret_Commands(uint8_t *rx_buffer);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-// TODO: Interpret commands
+// Interpret commands
 void Interpret_Commands(uint8_t *rx_buffer) {
 	if (strstr((const char * ) rx_buffer, "jrdy")) {
 		Send_to_Jetson('0', test1, 1);

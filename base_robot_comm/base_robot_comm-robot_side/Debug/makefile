@@ -60,8 +60,8 @@ all: main-build
 main-build: base_robot_comm-robot_side.elf secondary-outputs
 
 # Tool invocations
-base_robot_comm-robot_side.elf base_robot_comm-robot_side.map: $(OBJS) $(USER_OBJS) C:\Users\misrrael\senior_design\base_robot_comm\base_robot_comm-robot_side\STM32F767ZITX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "base_robot_comm-robot_side.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"C:\Users\misrrael\senior_design\base_robot_comm\base_robot_comm-robot_side\STM32F767ZITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="base_robot_comm-robot_side.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+base_robot_comm-robot_side.elf base_robot_comm-robot_side.map: $(OBJS) $(USER_OBJS) C:\Users\Lenovo\Documents\Purdue\Spring\ 2025\ECE\ 477\senior_design\base_robot_comm\base_robot_comm-robot_side\STM32F767ZITX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "base_robot_comm-robot_side.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"C:\Users\Lenovo\Documents\Purdue\Spring 2025\ECE 477\senior_design\base_robot_comm\base_robot_comm-robot_side\STM32F767ZITX_FLASH.ld" --specs=nosys.specs -Wl,-Map="base_robot_comm-robot_side.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

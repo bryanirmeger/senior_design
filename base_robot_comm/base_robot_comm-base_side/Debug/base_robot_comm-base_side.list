@@ -378,7 +378,7 @@ Disassembly of section .text:
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-// TODO: Interpret commands
+// Interpret commands
 void Interpret_Commands(uint8_t *rx_buffer) {
  8000564:	b580      	push	{r7, lr}
  8000566:	b082      	sub	sp, #8
