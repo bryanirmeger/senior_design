@@ -31,13 +31,13 @@ def orient(x_accel,y_accel,roll_speed) :
         angle+=360
     
     match angle:
-        case 0 if angle <= 5 | angle >=355 :
+        case 0 if angle <= 2.5 | angle >=357.5 :
             heading = 0 #North
-        case 1 if 85<=angle<=95:
+        case 1 if 87.5<=angle<=92.5:
             heading = 1 #East
-        case 2 if 175<=angle<=185:
+        case 2 if 177.5<=angle<=182.5:
             heading = 2 #South
-        case 3 if 265<=angle<=275:
+        case 3 if 267.5<=angle<=272.5:
             heading = 3 #West
         case 4:
             heading= 4 #Off course
