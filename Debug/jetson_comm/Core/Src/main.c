@@ -1,4 +1,4 @@
-/* USER CODE BEGIN Header */
+ /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * @file           : main.c
@@ -76,41 +76,7 @@ uint8_t tx_data[8] = {0,1,2,3,4,5,6,7};
 uint8_t h4_is_sent = 0;
 uint8_t h5_is_sent = 0;
 
-const char* led_command = "0000poll";
-
-//user functions
-//tx interrupt hander
-void HAL_UART_txCPltCallback(UART_HandleTypeDef *huart) {
-	if (huart -> Instance == UART4) {
-		h4_is_sent = 1;
-	}
-	else if (huart -> Instance == UART5) {
-		h5_is_sent = 1;
-	}
-}
-
-//rx interrupt handler
-void HAL_UART_rxCPltCallback(UART_HandleTypeDef *huart) {
-	//check for if its from Jetson or Robot
-	//Jetson sends expected commands for the data
-	if (huart -> Instance == UART4) {
-		//Receive data non blocking
-		HAL_UART_Receive_IT(&huart4,j_rx_data,8);
-		//check address
-		//if address is 3, send to robot micro via uart 5
-		if((char)(j_rx_data[0]) == '3') {
-			HAL_UART_Transmit_DMA(&huart5, j_rx_data, 8);
-			h5_is_sent = 0;
-		}
-		//if address is 2, keep and interpret the command
-		else if((char)(j_rx_data[0]) == '2') {
-			j_command();
-
-		}
-
-	}
-
-}
+const char* led_command = "00000led";
 
 //interpret jetson command
 void j_command(void) {
@@ -160,6 +126,8 @@ int main(void)
   MX_UART4_Init();
   MX_UART5_Init();
   /* USER CODE BEGIN 2 */
+  uint8_t loop[4] = {'l','o','o','p'};
+  HAL_UART_Receive_IT(&huart5,r_rx_data,8);
 
   /* USER CODE END 2 */
 
@@ -171,7 +139,8 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_7);
-	  HAL_Delay(500);
+	  HAL_UART_Transmit_DMA(&huart4, loop, 4);
+	  HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
@@ -399,7 +368,38 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+//user functions
+//tx interrupt hander
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
+	if (huart -> Instance == UART4) {
+		h4_is_sent = 1;
+	}
+	else if (huart -> Instance == UART5) {
+		h5_is_sent = 1;
+	}
+}
 
+//rx interrupt handler
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+	//check for if its from Jetson or Robot
+	//Jetson sends expected commands for the data
+	if (huart->Instance == huart4.Instance) {
+		//check address
+		//if address is 3, send to robot micro via uart 5
+		if((char)(j_rx_data[0]) == '3') {
+			HAL_UART_Transmit_DMA(&huart5, j_rx_data, 8);
+			h5_is_sent = 0;
+		}
+		//if address is 2, keep and interpret the command
+		else if((char)(j_rx_data[0]) == '2') {
+			j_command();
+
+		}
+
+	}
+	HAL_UART_Receive_IT(&huart4, j_rx_data,8);
+
+}
 /* USER CODE END 4 */
 
  /* MPU Configuration */
