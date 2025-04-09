@@ -287,7 +287,7 @@ int main(void)
 
 	  // Turn on LED on other board
 //	  Send_to_Jetson(0, test2, 1);
-//	  HAL_Delay(2000);
+	  HAL_Delay(2000);
 
 	  // Wait some time
 
