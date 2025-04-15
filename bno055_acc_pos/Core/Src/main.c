@@ -116,10 +116,13 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  HAL_Delay(100);
+	  HAL_Delay(200);
+	  // Read the IMU
+	  // poll_IMU(&hi2c2, (uint8_t*)imu_readings);
+
 	  // Read LINEAR acceleration data
 	  // Turn the MSB and LSB into a signed 16-bit value
-	  GetLinearAccelData(&hi2c2, (uint8_t*)imu_readings);
+	  GetLinearAccelData(&hi2c2, (uint8_t *)imu_readings);
 	  accel_data[0] = (((int16_t)((uint8_t *)(imu_readings))[1] << 8) | ((uint8_t *)(imu_readings))[0]);
 	  accel_data[1] = (((int16_t)((uint8_t *)(imu_readings))[3] << 8) | ((uint8_t *)(imu_readings))[2]);
 	  accel_data[2] = (((int16_t)((uint8_t *)(imu_readings))[5] << 8) | ((uint8_t *)(imu_readings))[4]);

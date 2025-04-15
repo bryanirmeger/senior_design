@@ -39,7 +39,7 @@ const char reset_sensor[3]	= {REG_WRITE, BNO055_SYS_TRIGGER, 0x01 << 5};
 uint8_t get_readings[1] 	= {BNO055_ACC_DATA_X_LSB};
 
 
-// Configure BNO sensor
+// Configure BNO055 with the desired settings
 void BNO055_Init_I2C(I2C_HandleTypeDef* hi2c_device) {
 	// Select BNO055 config mode
 	uint8_t opr_config_mode[2] = {BNO055_OPR_MODE, CONFIGMODE};
@@ -119,7 +119,18 @@ uint8_t GetLinearAccelData(I2C_HandleTypeDef* hi2c_device, uint8_t* str) {
 	status = HAL_I2C_Mem_Read(hi2c_device, BNO055_I2C_ADDR_LO<<1, BNO055_LIA_DATA_X_LSB, I2C_MEMADD_SIZE_8BIT, str, IMU_NUMBER_OF_BYTES, 100);
 	return status;
 }
-	
+
+// Poll the IMU (linear acceleration and Euler angles)
+// Use this when configures in IMU mode
+uint8_t poll_IMU(I2C_HandleTypeDef* hi2c_device, uint8_t* imu_raw_data) {
+	uint8_t status;
+	// Get the raw linear acceleration data
+	status = HAL_I2C_Mem_Read(hi2c_device, BNO055_I2C_ADDR_LO<<1, BNO055_LIA_DATA_X_LSB, I2C_MEMADD_SIZE_8BIT, imu_raw_data, LIN_ACC_NUMBER_OF_BYTES, 100);
+	// Get the raw Euler angles data
+	status = HAL_I2C_Mem_Read(hi2c_device, BNO055_I2C_ADDR_LO<<1, BNO055_EUL_HEADING_LSB, I2C_MEMADD_SIZE_8BIT, imu_raw_data + LIN_ACC_NUMBER_OF_BYTES, EULER_NUMBER_OF_BYTES, 100);
+	return status;
+}
+
 // TBD
 /*void readAccelData(int16_t *destination) {
   uint8_t rawData[6];  // x/y/z accel register data stored here

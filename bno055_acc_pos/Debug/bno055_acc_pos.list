@@ -27,25 +27,25 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   ALLOC
  11 .ARM.attributes 0000002e  00000000  00000000  00005014  2**0
                   CONTENTS, READONLY
- 12 .debug_info   00009ff9  00000000  00000000  00005042  2**0
+ 12 .debug_info   0000a03b  00000000  00000000  00005042  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 13 .debug_abbrev 00001c86  00000000  00000000  0000f03b  2**0
+ 13 .debug_abbrev 00001c86  00000000  00000000  0000f07d  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 14 .debug_aranges 00000890  00000000  00000000  00010cc8  2**3
+ 14 .debug_aranges 00000898  00000000  00000000  00010d08  2**3
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 15 .debug_rnglists 00000672  00000000  00000000  00011558  2**0
+ 15 .debug_rnglists 00000678  00000000  00000000  000115a0  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 16 .debug_macro  00026a9f  00000000  00000000  00011bca  2**0
+ 16 .debug_macro  00026aab  00000000  00000000  00011c18  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 17 .debug_line   0000be9d  00000000  00000000  00038669  2**0
+ 17 .debug_line   0000beb9  00000000  00000000  000386c3  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_str    000ed53d  00000000  00000000  00044506  2**0
+ 18 .debug_str    000ed585  00000000  00000000  0004457c  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .comment      00000043  00000000  00000000  00131a43  2**0
+ 19 .comment      00000043  00000000  00000000  00131b01  2**0
                   CONTENTS, READONLY
- 20 .debug_frame  0000216c  00000000  00000000  00131a88  2**2
+ 20 .debug_frame  00002190  00000000  00000000  00131b44  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 21 .debug_line_str 00000080  00000000  00000000  00133bf4  2**0
+ 21 .debug_line_str 00000080  00000000  00000000  00133cd4  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 Disassembly of section .text:
@@ -374,7 +374,7 @@ const char reset_sensor[3]	= {REG_WRITE, BNO055_SYS_TRIGGER, 0x01 << 5};
 uint8_t get_readings[1] 	= {BNO055_ACC_DATA_X_LSB};
 
 
-// Configure BNO sensor
+// Configure BNO055 with the desired settings
 void BNO055_Init_I2C(I2C_HandleTypeDef* hi2c_device) {
  8000564:	b580      	push	{r7, lr}
  8000566:	b08e      	sub	sp, #56	@ 0x38
@@ -963,12 +963,15 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  HAL_Delay(100);
- 8000930:	2064      	movs	r0, #100	@ 0x64
+	  HAL_Delay(200);
+ 8000930:	20c8      	movs	r0, #200	@ 0xc8
  8000932:	f000 fcfb 	bl	800132c <HAL_Delay>
+	  // Read the IMU
+	  // poll_IMU(&hi2c2, (uint8_t*)imu_readings);
+
 	  // Read LINEAR acceleration data
 	  // Turn the MSB and LSB into a signed 16-bit value
-	  GetLinearAccelData(&hi2c2, (uint8_t*)imu_readings);
+	  GetLinearAccelData(&hi2c2, (uint8_t *)imu_readings);
  8000936:	49b6      	ldr	r1, [pc, #728]	@ (8000c10 <main+0x318>)
  8000938:	48b4      	ldr	r0, [pc, #720]	@ (8000c0c <main+0x314>)
  800093a:	f7ff fef3 	bl	8000724 <GetLinearAccelData>
@@ -1353,7 +1356,7 @@ int main(void)
  8000cea:	b2db      	uxtb	r3, r3
  8000cec:	4618      	mov	r0, r3
  8000cee:	f7ff fd61 	bl	80007b4 <lcd_send_data>
-	  HAL_Delay(100);
+	  HAL_Delay(200);
  8000cf2:	e61d      	b.n	8000930 <main+0x38>
  8000cf4:	08003838 	.word	0x08003838
  8000cf8:	20000110 	.word	0x20000110

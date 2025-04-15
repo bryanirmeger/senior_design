@@ -1,7 +1,8 @@
 ../Core/Src/accel.c:43:6:BNO055_Init_I2C	64	static
 ../Core/Src/accel.c:108:9:GetAccelData	40	static
 ../Core/Src/accel.c:116:9:GetLinearAccelData	40	static
-../Core/Src/accel.c:133:9:GetAccelChipId	32	static
-../Core/Src/accel.c:139:9:GetAccelTemp	32	static
-../Core/Src/accel.c:148:9:BNO055_Get_Calibration	32	static
-../Core/Src/accel.c:157:6:BNO055_Calc_Calibration	24	static
+../Core/Src/accel.c:125:9:poll_IMU	40	static
+../Core/Src/accel.c:144:9:GetAccelChipId	32	static
+../Core/Src/accel.c:150:9:GetAccelTemp	32	static
+../Core/Src/accel.c:159:9:BNO055_Get_Calibration	32	static
+../Core/Src/accel.c:168:6:BNO055_Calc_Calibration	24	static
