@@ -21,7 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "string.h"
+#include "i2c-lcd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -37,10 +38,26 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
+#define BUFFER_SIZE 8
+#define BASE_STATE_BUSY 0
+#define BASE_STATE_READY 1
+
+#define TRIG_PORT_FRONT GPIOE
+#define TRIG_PIN_FRONT GPIO_PIN_8
+
+#define TRIG_PORT_BACK GPIOC
+#define TRIG_PIN_BACK GPIO_PIN_7
+
+#define TRIG_PORT_LEFT GPIOD
+#define TRIG_PIN_LEFT GPIO_PIN_13
+
+#define TRIG_PORT_RIGHT GPIOA
+#define TRIG_PIN_RIGHT GPIO_PIN_6
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
+I2C_HandleTypeDef hi2c1;
 I2C_HandleTypeDef hi2c2;
 
 TIM_HandleTypeDef htim1;
@@ -48,12 +65,29 @@ TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 
+UART_HandleTypeDef huart2;
+
 /* USER CODE BEGIN PV */
+
+// For device communication
+uint8_t base_rx_buffer [BUFFER_SIZE] = {0};  // RX Buffer (for communication with Base)
+uint8_t base_tx_buffer [BUFFER_SIZE] = {0};  // TX Buffer (for communication with Base)
+volatile uint8_t base_state = BASE_STATE_BUSY;  // State of the base (initialize to busy)
+uint8_t ready_confirm_string [6] = {'0', '0', 'r', 'r', 'd', 'y'};
+// TODO: Delete useless strings in final version
+uint8_t test2 [6] = {'d', 'e', 'e', 'z', 'n', 't'};
+
+// For ultrasonic sensor reading
+uint32_t idx = 0;
 uint32_t val1 = 0;
 uint32_t val2 = 0;
 uint32_t distance [4] = {0};
-uint8_t is_first_captured = 0;
+uint8_t is_first_captured = 0;  // in cm
+// TODO: Define a threshold (this one is for testing purposes)
+uint32_t distance_threshold = 10;
+uint8_t detection_status [6] = {0};
 /*
+ * Sensor position breakdown:
  * distance[0] -> front
  * distance[1] -> back
  * distance[2] -> left
@@ -71,46 +105,166 @@ static void MX_TIM1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM4_Init(void);
+static void MX_USART2_UART_Init(void);
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
-void delay_in_us (TIM_HandleTypeDef *htim, uint16_t time);
-void poll_ultrasonic (uint32_t idx);
+
+// For Device Communication
+void Send_to_Base (uint8_t addr, uint8_t *data, uint8_t is_ready);
+void Receive_from_Base(void);
+void Interpret_Commands(uint8_t *rx_buffer);
+
+// For Ultrasonics
+void delay_in_us (uint16_t time, TIM_HandleTypeDef *htim);
+void poll_ultrasonic (void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+/************************ DEVICE COMMUNICATION (BLUETOOTH) ********************/
+
+// Interpret commands
+void Interpret_Commands(uint8_t *rx_buffer) {
+	// Respond after establishing connection with Jetson
+	if (strstr((const char * ) rx_buffer, "jrdy")) {
+		Send_to_Base('0', ready_confirm_string, 1);
+	}
+	// Poll IMU and ultrasonic sensors
+	else if (strstr((const char * ) rx_buffer, "poll")) {
+		poll_ultrasonic();
+		// TODO: Delete line below after debugging
+		// Send_to_Base('0', test2, 1);
+	}
+}
+
+// Function to send bytes to Base
+void Send_to_Base (uint8_t addr, uint8_t *data, uint8_t is_ready) {
+	while (base_state != BASE_STATE_READY) {}
+	// Assign address
+	base_tx_buffer[0] = addr;
+	// Assign data (until before the last byte)
+	for (int i = 1; i < BUFFER_SIZE - 1; i++) {
+		base_tx_buffer[i] = data[i - 1];
+	}
+	// Assign status byte
+	if (is_ready) {
+		base_tx_buffer[BUFFER_SIZE - 1] = 'r';
+	}
+	else {
+		base_tx_buffer[BUFFER_SIZE - 1] = 'n';
+	}
+	// Transmit data packet
+	HAL_UART_Transmit_IT(&huart2, base_tx_buffer, BUFFER_SIZE);
+}
+
+// Function to Receive bytes from Base
+void Receive_from_Base(void) {
+	HAL_UART_Receive_IT(&huart2, base_rx_buffer, BUFFER_SIZE);
+}
+
+// Callback function after transmitting data
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
+	if (huart->Instance == huart2.Instance) {
+		// Transmission fully complete, now listen for any messages from base
+		base_state = BASE_STATE_BUSY;
+		Receive_from_Base();
+	}
+}
+
+// Callback function after receiving data
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+	if (huart->Instance == huart2.Instance) {
+		// Ready?
+		if (base_rx_buffer[BUFFER_SIZE - 1] == 'r') {
+			base_state = BASE_STATE_READY;
+		}
+		// Is this for Robot?
+		if (base_rx_buffer[0] == '2') {
+			// Interpret commands
+			Interpret_Commands(base_rx_buffer);
+		}
+	}
+}
+
+/*************************** ULTRASONIC SENSOR READING ************************/
+
 // Function that delays in microseconds (usec)
-void delay_in_us (TIM_HandleTypeDef *htim, uint16_t time) {
+void delay_in_us (uint16_t time, TIM_HandleTypeDef *htim) {
 	__HAL_TIM_SET_COUNTER(htim, 0);
 	while (__HAL_TIM_GET_COUNTER(htim) <  time);
 }
 
+
 // Poll ultrasonic sensors
+void poll_ultrasonic (void) {
+	// Front Sensor
+	idx = 0;
+	HAL_GPIO_WritePin(TRIG_PORT_FRONT, TRIG_PIN_FRONT, GPIO_PIN_SET);  // pull the TRIG pin HIGH
+	delay_in_us(10, &htim1);  // wait for 10 us
+	HAL_GPIO_WritePin(TRIG_PORT_FRONT, TRIG_PIN_FRONT, GPIO_PIN_RESET);  // pull the TRIG pin low
+	__HAL_TIM_ENABLE_IT(&htim1, TIM_IT_CC1);
+	HAL_Delay(10);
+
+	// Back Sensor
+	idx = 1;
+	HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_1);
+	HAL_GPIO_WritePin(TRIG_PORT_BACK, TRIG_PIN_BACK, GPIO_PIN_SET);  // pull the TRIG pin HIGH
+	delay_in_us(10, &htim3);  // wait for 10 us
+	HAL_GPIO_WritePin(TRIG_PORT_BACK, TRIG_PIN_BACK, GPIO_PIN_RESET);  // pull the TRIG pin low
+	__HAL_TIM_ENABLE_IT(&htim3, TIM_IT_CC1);
+	HAL_Delay(10);
+
+	// Left Sensor
+	idx = 2;
+	HAL_GPIO_WritePin(TRIG_PORT_LEFT, TRIG_PIN_LEFT, GPIO_PIN_SET);  // pull the TRIG pin HIGH
+	delay_in_us(10, &htim4);  // wait for 10 us
+	HAL_GPIO_WritePin(TRIG_PORT_LEFT, TRIG_PIN_LEFT, GPIO_PIN_RESET);  // pull the TRIG pin low
+	__HAL_TIM_ENABLE_IT(&htim4, TIM_IT_CC1);
+	HAL_Delay(10);
+
+	// Right Sensor
+	idx = 3;
+	HAL_GPIO_WritePin(TRIG_PORT_RIGHT, TRIG_PIN_RIGHT, GPIO_PIN_SET);  // pull the TRIG pin HIGH
+	delay_in_us(10, &htim2);  // wait for 10 us
+	HAL_GPIO_WritePin(TRIG_PORT_RIGHT, TRIG_PIN_RIGHT, GPIO_PIN_RESET);  // pull the TRIG pin low
+	__HAL_TIM_ENABLE_IT(&htim2, TIM_IT_CC1);
+	HAL_Delay(10);
+
+	// Set last bytes to '0'
+	detection_status[4] = '0';
+	detection_status[5] = '0';
+
+	// Send detection status to Jetson
+	Send_to_Base('0', detection_status, 1);
+}
+
+/*
 void poll_ultrasonic (uint32_t timer_idx) {
 	switch (timer_idx) {
-	// Front Sensor (TRIG Pin is PE8)
+	// Front Sensor
 	case 0:
 		HAL_GPIO_WritePin(GPIOE, GPIO_PIN_8, 1);
 		delay_in_us(&htim1, 10);
 		HAL_GPIO_WritePin(GPIOE, GPIO_PIN_8, 0);
 		__HAL_TIM_ENABLE_IT(&htim1, TIM_IT_CC1);
 		break;
-	// Back Sensor (TRIG Pin is PA6)
-	case 1:
+	// Back Sensor
+	case 3:
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, 1);
 		delay_in_us(&htim2, 10);
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, 0);
 		__HAL_TIM_ENABLE_IT(&htim2, TIM_IT_CC1);
 		break;
-	// Left Sensor (TRIG Pin is PC7)
+	// Left Sensor
+	case 1:
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, 1);
 		delay_in_us(&htim3, 10);
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, 0);
 		__HAL_TIM_ENABLE_IT(&htim3, TIM_IT_CC1);
-	case 2:
 		break;
-	// Right Sensor (TRIG Pin is PD13)
-	case 3:
+	// Right Sensor
+	case 2:
 		HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 1);
 		delay_in_us(&htim4, 10);
 		HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 0);
@@ -120,30 +274,76 @@ void poll_ultrasonic (uint32_t timer_idx) {
 		break;
 	}
 }
+*/
 
 // Input Capture Callback Function
 void HAL_TIM_IC_CaptureCallback (TIM_HandleTypeDef *htim) {
-	uint32_t idx;  // index that indicates what distance element to update
+	if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1) { // If the interrupt source is channel 1
+		if (is_first_captured == 0) { // If the first value is not captured
+			val1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1); // Read the first value
+			is_first_captured = 1;
+			// Change the polarity to falling edge
+			__HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_1, TIM_INPUTCHANNELPOLARITY_FALLING);
+		}
+		else if (is_first_captured == 1) { // If the first is already captured
+			uint32_t diff;
+			val2 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);  // Read second value
+			__HAL_TIM_SET_COUNTER(htim, 0);  // Reset the counter
+
+			if (val2 > val1) {
+				diff = val2 - val1; // diff is in microseconds
+			}
+
+			else if (val1 > val2) {
+				diff = (0xffff - val1) + val2;  // diff is in microseconds
+			}
+
+			distance[idx] = diff * .034/2;  // UNITS BREAKDOWN: (10^(-6) s) * (10^4 m/s) = 10^(-2) m = cm -> distance is in cm
+			is_first_captured = 0; // Set back to false
+
+			// Set polarity to rising edge
+			__HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_1, TIM_INPUTCHANNELPOLARITY_RISING);
+			__HAL_TIM_DISABLE_IT(htim, TIM_IT_CC1);
+
+			// Compare with distance threshold
+			if (distance[idx] < distance_threshold) {
+				detection_status[idx] = '1';  // obstacle detected!
+			}
+			else {
+				detection_status[idx] = '0';  // no obstacle detected
+			}
+		}
+	}
+}
+
+/*
+void HAL_TIM_IC_CaptureCallback (TIM_HandleTypeDef *htim) {
+	uint32_t idx = 4;  // index that indicates what distance element to update
 	uint32_t diff;  // difference between val1 and val2
 
 	// Get the Timer Index
+	// Front Sensor
 	if (htim->Instance == htim1.Instance) {
 		idx = 0;
 	}
-	else if (htim->Instance == htim2.Instance) {
+	// Back Sensor
+	else if (htim->Instance == htim3.Instance) {
 		idx = 1;
 	}
-	else if (htim->Instance == htim3.Instance) {
+	// Left Sensor
+	else if (htim->Instance == htim4.Instance) {
 		idx = 2;
 	}
-	else if (htim->Instance == htim4.Instance) {
+	// Right Sensor
+	else if (htim->Instance == htim2.Instance) {
 		idx = 3;
 	}
+	// Default (shouldn't happen, but we'll still handle it)
 	else {
 		idx = 4;
 	}
 
-	// Start measuring the distance
+	// Measure distance to obstacle
 	if (idx != 4 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1) {
 		if (is_first_captured == 0) {  // If the first value is not captured
 			val1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);  // Read the first value
@@ -164,20 +364,39 @@ void HAL_TIM_IC_CaptureCallback (TIM_HandleTypeDef *htim) {
 			distance[idx] = diff * .034/2;  // UNITS BREAKDOWN: (10^(-6) s) * (10^4 m/s) = 10^(-2) m = cm -> distance is in cm
 			is_first_captured = 0; // Set back to false
 
+			// Compare with distance threshold
+			if (distance[idx] < distance_threshold) {
+				detection_status[idx] = '1';  // obstacle detected!
+			}
+			else {
+				detection_status[idx] = '0';  // no obstacle detected
+			}
+
 			// Set polarity to rising edge
 			__HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_1, TIM_INPUTCHANNELPOLARITY_RISING);
 			__HAL_TIM_DISABLE_IT(htim, TIM_IT_CC1);
 
-			// Poll the next sensor (go to the 1st if you are in the 4th)
+			// Poll the next sensor (except at the end)
 			if (idx == 3) {
+				detection_status[4] = '0';
+				detection_status[5] = '0';
+
+				// TODO: Comment out if not Jetson comms
+				// Send_to_Base('0', detection_status, 1);
+
+				// TODO: Delete this after the debug process
+				HAL_Delay(50);
 				poll_ultrasonic(0);
 			}
 			else {
+				HAL_Delay(50);
 				poll_ultrasonic(idx + 1);
 			}
 		}
 	}
 }
+*/
+
 /* USER CODE END 0 */
 
 /**
@@ -217,10 +436,22 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM3_Init();
   MX_TIM4_Init();
+  MX_USART2_UART_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
-  // Start polling ultrasonic sensors
-  poll_ultrasonic(1);
+  // Turn ON Debug LED
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
+
+  // TODO: Comment when not using LCD screen
+  lcd_init();
+  lcd_send_string (" Px  Nx  Py  Ny");
+  lcd_put_cur(1, 2);
+  lcd_send_string("0   0   0   0");
+
+  // TODO: Uncomment when testing with device comms
+  // Start receiving from base
+  Receive_from_Base();
 
   /* USER CODE END 2 */
 
@@ -231,6 +462,17 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  /*
+	  poll_ultrasonic();
+	  lcd_put_cur(1, 2);
+	  lcd_send_data(detection_status[0]);
+	  lcd_put_cur(1, 6);
+	  lcd_send_data(detection_status[1]);
+	  lcd_put_cur(1, 10);
+	  lcd_send_data(detection_status[2]);
+	  lcd_put_cur(1, 14);
+	  lcd_send_data(detection_status[3]);
+	  */
   }
   /* USER CODE END 3 */
 }
@@ -287,6 +529,54 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.Timing = 0x20303E5D;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Analogue filter
+  */
+  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Digital filter
+  */
+  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
 }
 
 /**
@@ -349,6 +639,7 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 0 */
 
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_IC_InitTypeDef sConfigIC = {0};
 
@@ -362,6 +653,15 @@ static void MX_TIM1_Init(void)
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_IC_Init(&htim1) != HAL_OK)
   {
     Error_Handler();
@@ -382,7 +682,7 @@ static void MX_TIM1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM1_Init 2 */
-
+  HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
   /* USER CODE END TIM1_Init 2 */
 
 }
@@ -399,6 +699,7 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 0 */
 
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_IC_InitTypeDef sConfigIC = {0};
 
@@ -411,6 +712,15 @@ static void MX_TIM2_Init(void)
   htim2.Init.Period = 0xffff-1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_IC_Init(&htim2) != HAL_OK)
   {
     Error_Handler();
@@ -430,7 +740,7 @@ static void MX_TIM2_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM2_Init 2 */
-
+  HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
   /* USER CODE END TIM2_Init 2 */
 
 }
@@ -447,6 +757,7 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 0 */
 
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_IC_InitTypeDef sConfigIC = {0};
 
@@ -459,6 +770,15 @@ static void MX_TIM3_Init(void)
   htim3.Init.Period = 0xffff-1;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_IC_Init(&htim3) != HAL_OK)
   {
     Error_Handler();
@@ -478,7 +798,7 @@ static void MX_TIM3_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM3_Init 2 */
-
+  HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_1);
   /* USER CODE END TIM3_Init 2 */
 
 }
@@ -495,6 +815,7 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 0 */
 
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_IC_InitTypeDef sConfigIC = {0};
 
@@ -507,6 +828,15 @@ static void MX_TIM4_Init(void)
   htim4.Init.Period = 0xffff-1;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   if (HAL_TIM_IC_Init(&htim4) != HAL_OK)
   {
     Error_Handler();
@@ -526,8 +856,43 @@ static void MX_TIM4_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM4_Init 2 */
-
+  HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_1);
   /* USER CODE END TIM4_Init 2 */
+
+}
+
+/**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
 
 }
 
@@ -547,6 +912,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
 
@@ -555,6 +921,9 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(US1_TRIG_GPIO_Port, US1_TRIG_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(Debug_LED_GPIO_Port, Debug_LED_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(US4_TRIG_GPIO_Port, US4_TRIG_Pin, GPIO_PIN_RESET);
@@ -581,6 +950,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(US1_TRIG_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : Debug_LED_Pin */
+  GPIO_InitStruct.Pin = Debug_LED_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(Debug_LED_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : US4_TRIG_Pin */
   GPIO_InitStruct.Pin = US4_TRIG_Pin;

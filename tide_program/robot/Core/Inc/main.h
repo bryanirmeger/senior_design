@@ -72,6 +72,8 @@ void Error_Handler(void);
 #define US1_TRIG_GPIO_Port GPIOE
 #define US1_ECHO_Pin GPIO_PIN_9
 #define US1_ECHO_GPIO_Port GPIOE
+#define Debug_LED_Pin GPIO_PIN_12
+#define Debug_LED_GPIO_Port GPIOB
 #define US4_ECHO_Pin GPIO_PIN_12
 #define US4_ECHO_GPIO_Port GPIOD
 #define US4_TRIG_Pin GPIO_PIN_13
@@ -80,6 +82,10 @@ void Error_Handler(void);
 #define US3_ECHO_GPIO_Port GPIOC
 #define US3_TRIG_Pin GPIO_PIN_7
 #define US3_TRIG_GPIO_Port GPIOC
+#define Bluetooth_TX_Pin GPIO_PIN_5
+#define Bluetooth_TX_GPIO_Port GPIOD
+#define Bluetooth_RX_Pin GPIO_PIN_6
+#define Bluetooth_RX_GPIO_Port GPIOD
 
 /* USER CODE BEGIN Private defines */
 
