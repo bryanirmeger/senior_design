@@ -205,6 +205,7 @@ void poll_ultrasonic (void) {
 	HAL_GPIO_WritePin(TRIG_PORT_FRONT, TRIG_PIN_FRONT, GPIO_PIN_RESET);  // pull the TRIG pin low
 	__HAL_TIM_ENABLE_IT(&htim1, TIM_IT_CC1);
 	HAL_Delay(10);
+	while(is_first_captured != 0);
 
 	// Back Sensor
 	idx = 1;
@@ -214,6 +215,7 @@ void poll_ultrasonic (void) {
 	HAL_GPIO_WritePin(TRIG_PORT_BACK, TRIG_PIN_BACK, GPIO_PIN_RESET);  // pull the TRIG pin low
 	__HAL_TIM_ENABLE_IT(&htim3, TIM_IT_CC1);
 	HAL_Delay(10);
+	while(is_first_captured != 0);
 
 	// Left Sensor
 	idx = 2;
@@ -222,6 +224,7 @@ void poll_ultrasonic (void) {
 	HAL_GPIO_WritePin(TRIG_PORT_LEFT, TRIG_PIN_LEFT, GPIO_PIN_RESET);  // pull the TRIG pin low
 	__HAL_TIM_ENABLE_IT(&htim4, TIM_IT_CC1);
 	HAL_Delay(10);
+	while(is_first_captured != 0);
 
 	// Right Sensor
 	idx = 3;
@@ -230,6 +233,7 @@ void poll_ultrasonic (void) {
 	HAL_GPIO_WritePin(TRIG_PORT_RIGHT, TRIG_PIN_RIGHT, GPIO_PIN_RESET);  // pull the TRIG pin low
 	__HAL_TIM_ENABLE_IT(&htim2, TIM_IT_CC1);
 	HAL_Delay(10);
+	while(is_first_captured != 0);
 
 	// Set last bytes to '0'
 	detection_status[4] = '0';
@@ -239,42 +243,6 @@ void poll_ultrasonic (void) {
 	Send_to_Base('0', detection_status, 1);
 }
 
-/*
-void poll_ultrasonic (uint32_t timer_idx) {
-	switch (timer_idx) {
-	// Front Sensor
-	case 0:
-		HAL_GPIO_WritePin(GPIOE, GPIO_PIN_8, 1);
-		delay_in_us(&htim1, 10);
-		HAL_GPIO_WritePin(GPIOE, GPIO_PIN_8, 0);
-		__HAL_TIM_ENABLE_IT(&htim1, TIM_IT_CC1);
-		break;
-	// Back Sensor
-	case 3:
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, 1);
-		delay_in_us(&htim2, 10);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, 0);
-		__HAL_TIM_ENABLE_IT(&htim2, TIM_IT_CC1);
-		break;
-	// Left Sensor
-	case 1:
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, 1);
-		delay_in_us(&htim3, 10);
-		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, 0);
-		__HAL_TIM_ENABLE_IT(&htim3, TIM_IT_CC1);
-		break;
-	// Right Sensor
-	case 2:
-		HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 1);
-		delay_in_us(&htim4, 10);
-		HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 0);
-		__HAL_TIM_ENABLE_IT(&htim4, TIM_IT_CC1);
-		break;
-	default:
-		break;
-	}
-}
-*/
 
 // Input Capture Callback Function
 void HAL_TIM_IC_CaptureCallback (TIM_HandleTypeDef *htim) {
@@ -315,87 +283,6 @@ void HAL_TIM_IC_CaptureCallback (TIM_HandleTypeDef *htim) {
 		}
 	}
 }
-
-/*
-void HAL_TIM_IC_CaptureCallback (TIM_HandleTypeDef *htim) {
-	uint32_t idx = 4;  // index that indicates what distance element to update
-	uint32_t diff;  // difference between val1 and val2
-
-	// Get the Timer Index
-	// Front Sensor
-	if (htim->Instance == htim1.Instance) {
-		idx = 0;
-	}
-	// Back Sensor
-	else if (htim->Instance == htim3.Instance) {
-		idx = 1;
-	}
-	// Left Sensor
-	else if (htim->Instance == htim4.Instance) {
-		idx = 2;
-	}
-	// Right Sensor
-	else if (htim->Instance == htim2.Instance) {
-		idx = 3;
-	}
-	// Default (shouldn't happen, but we'll still handle it)
-	else {
-		idx = 4;
-	}
-
-	// Measure distance to obstacle
-	if (idx != 4 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1) {
-		if (is_first_captured == 0) {  // If the first value is not captured
-			val1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);  // Read the first value
-			is_first_captured = 1;
-			// Change the polarity to falling edge
-			__HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_1, TIM_INPUTCHANNELPOLARITY_FALLING);
-		}
-		else if (is_first_captured == 1) {
-			val2 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);  // Read second value
-			__HAL_TIM_SET_COUNTER(htim, 0);  // Reset the counter
-
-			if (val2 > val1) {
-				diff = val2 - val1;  // diff is in microseconds
-			}
-			else if (val1 > val2) {
-				diff = (0xffff - val1) + val2;  // diff is in microseconds
-			}
-			distance[idx] = diff * .034/2;  // UNITS BREAKDOWN: (10^(-6) s) * (10^4 m/s) = 10^(-2) m = cm -> distance is in cm
-			is_first_captured = 0; // Set back to false
-
-			// Compare with distance threshold
-			if (distance[idx] < distance_threshold) {
-				detection_status[idx] = '1';  // obstacle detected!
-			}
-			else {
-				detection_status[idx] = '0';  // no obstacle detected
-			}
-
-			// Set polarity to rising edge
-			__HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_1, TIM_INPUTCHANNELPOLARITY_RISING);
-			__HAL_TIM_DISABLE_IT(htim, TIM_IT_CC1);
-
-			// Poll the next sensor (except at the end)
-			if (idx == 3) {
-				detection_status[4] = '0';
-				detection_status[5] = '0';
-
-				// TODO: Comment out if not Jetson comms
-				// Send_to_Base('0', detection_status, 1);
-
-				// TODO: Delete this after the debug process
-				HAL_Delay(50);
-				poll_ultrasonic(0);
-			}
-			else {
-				HAL_Delay(50);
-				poll_ultrasonic(idx + 1);
-			}
-		}
-	}
-}
-*/
 
 /* USER CODE END 0 */
 
