@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include "string.h"
 #include "i2c-lcd.h"
+#include "accel.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -38,7 +39,7 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
-#define BUFFER_SIZE 8
+#define BUFFER_SIZE 8 // 1 address, 6 for different expected data, 1 device status
 #define BASE_STATE_BUSY 0
 #define BASE_STATE_READY 1
 
@@ -53,6 +54,27 @@
 
 #define TRIG_PORT_RIGHT GPIOA
 #define TRIG_PIN_RIGHT GPIO_PIN_6
+
+#define LEFT_IC htim11
+#define LEFT_IC_CHANNEL TIM_CHANNEL_1
+#define LEFT_PWM htim8
+#define LEFT_PWM_CHANNEL TIM_CHANNEL_4
+#define LEFT_FORWARD GPIOE
+#define LEFT_FORWARD_PIN GPIO_PIN_14
+#define LEFT_REVERSE GPIOE
+#define LEFT_REVERSE_PIN GPIO_PIN_13
+
+#define RIGHT_IC htim10
+#define RIGHT_IC_CHANNEL TIM_CHANNEL_1
+#define RIGHT_PWM htim8
+#define RIGHT_PWM_CHANNEL TIM_CHANNEL_3
+#define RIGHT_FORWARD GPIOE
+#define RIGHT_FORWARD_PIN GPIO_PIN_11
+#define RIGHT_REVERSE GPIOE
+#define RIGHT_REVERSE_PIN GPIO_PIN_12
+
+#define error_t 10
+#define pwm_period 2399
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -64,6 +86,8 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
+TIM_HandleTypeDef htim8;
+TIM_HandleTypeDef htim9;
 
 UART_HandleTypeDef huart2;
 
@@ -73,8 +97,10 @@ UART_HandleTypeDef huart2;
 uint8_t base_rx_buffer [BUFFER_SIZE] = {0};  // RX Buffer (for communication with Base)
 uint8_t base_tx_buffer [BUFFER_SIZE] = {0};  // TX Buffer (for communication with Base)
 volatile uint8_t base_state = BASE_STATE_BUSY;  // State of the base (initialize to busy)
-uint8_t ready_confirm_string [6] = {'0', '0', 'r', 'r', 'd', 'y'};
-// TODO: Delete useless strings in final version
+uint8_t ready_confirm_string [BUFFER_SIZE - 2] = {'0', '0', 'r', 'r', 'd', 'y'};
+uint8_t move_success_string [BUFFER_SIZE - 2] = {'0', '0', 's', 'u', 'c', 'c'};
+uint8_t move_fail_string [BUFFER_SIZE - 2] = {'0', '0', 'f', 'a', 'i', 'l'};
+// "Test" string ONLY
 uint8_t test2 [6] = {'d', 'e', 'e', 'z', 'n', 't'};
 
 // For ultrasonic sensor reading
@@ -83,8 +109,7 @@ uint32_t val1 = 0;
 uint32_t val2 = 0;
 uint32_t distance [4] = {0};
 uint8_t is_first_captured = 0;  // in cm
-// TODO: Define a threshold (this one is for testing purposes)
-uint32_t distance_threshold = 10;
+uint32_t distance_threshold = 10;  // threshold is 10 cm
 uint8_t detection_status [6] = {0};
 /*
  * Sensor position breakdown:
@@ -93,6 +118,16 @@ uint8_t detection_status [6] = {0};
  * distance[2] -> left
  * distance[3] -> right
  */
+
+// For IMU
+uint8_t imu_readings[LIN_ACC_NUMBER_OF_BYTES + EULER_NUMBER_OF_BYTES];
+int16_t euler_heading_raw = 0;
+
+//for motor controller
+int facing = 0;
+float tide_angle = 0;
+int tim9_counter = 0;
+int ic_overrun = 0;
 
 /* USER CODE END PV */
 
@@ -107,6 +142,8 @@ static void MX_TIM3_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_TIM8_Init(void);
+static void MX_TIM9_Init(void);
 /* USER CODE BEGIN PFP */
 
 // For Device Communication
@@ -117,6 +154,12 @@ void Interpret_Commands(uint8_t *rx_buffer);
 // For Ultrasonics
 void delay_in_us (uint16_t time, TIM_HandleTypeDef *htim);
 void poll_ultrasonic (void);
+
+// For Motors Controller
+void Start_Diff_PWM(void);
+void motors_controller(float on_r, float on_l);
+void move(float x, float angle);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -130,11 +173,37 @@ void Interpret_Commands(uint8_t *rx_buffer) {
 	if (strstr((const char * ) rx_buffer, "jrdy")) {
 		Send_to_Base('0', ready_confirm_string, 1);
 	}
-	// Poll IMU and ultrasonic sensors
+	// Poll ultrasonic sensors
 	else if (strstr((const char * ) rx_buffer, "poll")) {
 		poll_ultrasonic();
-		// TODO: Delete line below after debugging
-		// Send_to_Base('0', test2, 1);
+	}
+	// Start requested movement and rotation
+	else if (strstr((const char * ) rx_buffer, "mve")) {
+		// Define some variables
+		float requested_heading;
+		float do_move = 0;
+
+		// Interpret requested movement
+		if (rx_buffer[5] == '1') {
+			do_move = 1;
+		}
+		else if (rx_buffer[5] == '0') {
+			do_move = 0;
+		}
+
+		// Interpret requested rotation
+		requested_heading = (float)(rx_buffer[6]) * 360 / 255;
+
+		// MOVE!!
+		move(do_move, requested_heading);
+
+		// Verify current heading is close to requested heading
+		if ((tide_angle >= requested_heading - 5) && ((tide_angle <= requested_heading + 5) || (requested_heading > 355))) {
+			Send_to_Base('0', move_success_string, 1);
+		}
+		else {
+			Send_to_Base('0', move_fail_string, 1);
+		}
 	}
 }
 
@@ -284,6 +353,104 @@ void HAL_TIM_IC_CaptureCallback (TIM_HandleTypeDef *htim) {
 	}
 }
 
+/************************ MOTOR CONTROLLER ********************/
+void Start_Diff_PWM(void) {
+	HAL_TIM_PWM_Start(&htim8, TIM_CHANNEL_3);
+	__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_3, 0);
+	HAL_TIM_PWM_Start(&htim8, TIM_CHANNEL_4);
+	__HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_4, 0);
+}
+
+void move(float x, float angle) {
+	while(angle - tide_angle > error_t) {
+		poll_IMU(&hi2c2, imu_readings);
+		euler_heading_raw = (((int16_t)((uint8_t *)(imu_readings))[5] << 8) | ((uint8_t *)(imu_readings))[4]);
+		tide_angle = ((float)(euler_heading_raw))/16.0f;
+		int angle_diff = angle - tide_angle;
+		//assume within tolerance, not enough time in project to do otherwise
+		//if angle difference is positive, turn right
+		//if angle difference is negative, turn left
+		if(angle_diff < 0) {
+			while(angle_diff < error_t) {
+				poll_IMU(&hi2c2, imu_readings);
+				euler_heading_raw = (((int16_t)((uint8_t *)(imu_readings))[5] << 8) | ((uint8_t *)(imu_readings))[4]);
+				tide_angle = ((float)(euler_heading_raw))/16.0f;
+				motors_controller(1, -1);
+				angle_diff = angle - tide_angle;
+			}
+		}
+		else if(angle_diff > 0) {
+			while(angle_diff > error_t) {
+				poll_IMU(&hi2c2, imu_readings);
+				euler_heading_raw = (((int16_t)((uint8_t *)(imu_readings))[5] << 8) | ((uint8_t *)(imu_readings))[4]);
+				tide_angle = ((float)(euler_heading_raw))/16.0f;
+				motors_controller(-1, 1);
+				angle_diff = angle - tide_angle;
+			}
+		}
+	}
+	//calculated equation. assume x is in 6 inch intervals
+	if(x == 1) {
+		motors_controller(1,1);
+		HAL_TIM_Base_Start_IT(&htim9);
+		TIM9 -> CR1 |= 0b1;
+		//wait for timer to overrun the 4.25 second period
+		while(!ic_overrun);
+		motors_controller(0,0);
+		TIM9 -> CNT = 0;
+		ic_overrun = 0;
+		tim9_counter = 0;
+	}
+}
+
+void motors_controller(float on_r, float on_l) {
+	if(on_r == 1) {
+		HAL_GPIO_WritePin(RIGHT_REVERSE, RIGHT_REVERSE_PIN, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(RIGHT_FORWARD, RIGHT_FORWARD_PIN, GPIO_PIN_SET);
+		__HAL_TIM_SET_COMPARE(&RIGHT_PWM, RIGHT_PWM_CHANNEL, 0.8 * pwm_period);
+	}
+	else if(on_r == -1) {
+		HAL_GPIO_WritePin(RIGHT_FORWARD, RIGHT_FORWARD_PIN, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(RIGHT_REVERSE, RIGHT_REVERSE_PIN, GPIO_PIN_SET);
+		__HAL_TIM_SET_COMPARE(&RIGHT_PWM, RIGHT_PWM_CHANNEL, 0.8 * pwm_period);
+	}
+	else {
+		__HAL_TIM_SET_COMPARE(&RIGHT_PWM, RIGHT_PWM_CHANNEL, 0);
+		HAL_GPIO_WritePin(RIGHT_FORWARD, RIGHT_FORWARD_PIN, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(RIGHT_REVERSE, RIGHT_REVERSE_PIN, GPIO_PIN_RESET);
+	}
+
+	if(on_l == 1) {
+		HAL_GPIO_WritePin(LEFT_REVERSE, LEFT_REVERSE_PIN, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(LEFT_FORWARD, LEFT_FORWARD_PIN, GPIO_PIN_SET);
+		__HAL_TIM_SET_COMPARE(&LEFT_PWM, LEFT_PWM_CHANNEL, 0.778 * pwm_period);
+	}
+	else if(on_l == -1) {
+		HAL_GPIO_WritePin(LEFT_FORWARD, LEFT_FORWARD_PIN, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(LEFT_REVERSE, LEFT_REVERSE_PIN, GPIO_PIN_SET);
+		__HAL_TIM_SET_COMPARE(&LEFT_PWM, LEFT_PWM_CHANNEL, 0.778 * pwm_period);
+	}
+	else {
+		__HAL_TIM_SET_COMPARE(&LEFT_PWM, LEFT_PWM_CHANNEL, 0);
+		HAL_GPIO_WritePin(LEFT_FORWARD, LEFT_FORWARD_PIN, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(LEFT_REVERSE, LEFT_REVERSE_PIN, GPIO_PIN_RESET);
+	}
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+	if(htim->Instance == htim9.Instance){
+		__HAL_TIM_CLEAR_IT(htim, TIM_IT_UPDATE);
+		tim9_counter++;
+		if(tim9_counter >= 17){
+			ic_overrun = 1;
+			TIM9 -> CR1 &= ~0b1;
+		}
+	}
+}
+
+
+
+
 /* USER CODE END 0 */
 
 /**
@@ -294,6 +461,11 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+	/*
+	int16_t euler_data [3];
+	float euler_heading, euler_roll, euler_pitch;
+	float euler_heading_abs, euler_roll_abs, euler_pitch_abs;
+	*/
 
   /* USER CODE END 1 */
 
@@ -325,6 +497,8 @@ int main(void)
   MX_TIM4_Init();
   MX_USART2_UART_Init();
   MX_I2C1_Init();
+  MX_TIM8_Init();
+  MX_TIM9_Init();
   /* USER CODE BEGIN 2 */
 
   // Turn ON Debug LED
@@ -332,9 +506,16 @@ int main(void)
 
   // TODO: Comment when not using LCD screen
   lcd_init();
+  /*
   lcd_send_string (" Px  Nx  Py  Ny");
   lcd_put_cur(1, 2);
   lcd_send_string("0   0   0   0");
+  */
+
+  // lcd_send_string("H=    R=    P=");
+
+  // Start and configure IMU
+  BNO055_Init_I2C(&hi2c2);
 
   // TODO: Uncomment when testing with device comms
   // Start receiving from base
@@ -360,6 +541,47 @@ int main(void)
 	  lcd_put_cur(1, 14);
 	  lcd_send_data(detection_status[3]);
 	  */
+
+	  /*
+	  HAL_Delay(100);
+	  // Poll IMU
+	  poll_IMU(&hi2c2, imu_readings);
+	  euler_data[0] = (((int16_t)((uint8_t *)(imu_readings))[5] << 8) | ((uint8_t *)(imu_readings))[4]);
+	  euler_data[1] = (((int16_t)((uint8_t *)(imu_readings))[7] << 8) | ((uint8_t *)(imu_readings))[6]);
+	  euler_data[2] = (((int16_t)((uint8_t *)(imu_readings))[9] << 8) | ((uint8_t *)(imu_readings))[8]);
+
+	  // Get Euler angles in degrees
+	  euler_heading = ((float)(euler_data[0]))/16.0f;
+	  euler_roll = ((float)(euler_data[1]))/16.0f;
+	  euler_pitch = ((float)(euler_data[2]))/16.0f;
+
+	  // Get absolute magnitude of Euler angles
+	  euler_heading_abs = (euler_heading < 0) ? -euler_heading : euler_heading;
+	  euler_roll_abs = (euler_roll < 0) ? -euler_roll : euler_roll;
+	  euler_pitch_abs = (euler_pitch < 0) ? -euler_pitch : euler_pitch;
+
+	  // Print euler_heading
+	  lcd_put_cur(1, 0);
+	  lcd_send_string((euler_heading < 0) ? "-" : "+");
+	  lcd_send_data((((int)(euler_heading_abs) / 100) % 10) + 48);   // 100th pos
+	  lcd_send_data((((int)(euler_heading_abs) / 10) % 10) + 48);  // 10th pos
+	  lcd_send_data(((int)(euler_heading_abs) % 10) + 48);  // 1st pos
+
+	  // Print euler_roll
+	  lcd_put_cur(1, 6);
+	  lcd_send_string((euler_roll < 0) ? "-" : "+");
+	  lcd_send_data((((int)(euler_roll_abs) / 100) % 10) + 48);   // 100th pos
+	  lcd_send_data((((int)(euler_roll_abs) / 10) % 10) + 48);  // 10th pos
+	  lcd_send_data(((int)(euler_roll_abs) % 10) + 48);  // 1st pos
+
+	  // Print euler_pitch
+	  lcd_put_cur(1, 12);
+	  lcd_send_string((euler_pitch < 0) ? "-" : "+");
+	  lcd_send_data((((int)(euler_pitch_abs) / 100) % 10) + 48);   // 100th pos
+	  lcd_send_data((((int)(euler_pitch_abs) / 10) % 10) + 48);  // 10th pos
+	  lcd_send_data(((int)(euler_pitch_abs) % 10) + 48);  // 1st pos
+	  */
+
   }
   /* USER CODE END 3 */
 }
@@ -749,6 +971,118 @@ static void MX_TIM4_Init(void)
 }
 
 /**
+  * @brief TIM8 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM8_Init(void)
+{
+
+  /* USER CODE BEGIN TIM8_Init 0 */
+
+  /* USER CODE END TIM8_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
+
+  /* USER CODE BEGIN TIM8_Init 1 */
+
+  /* USER CODE END TIM8_Init 1 */
+  htim8.Instance = TIM8;
+  htim8.Init.Prescaler = 0;
+  htim8.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim8.Init.Period = 2399;
+  htim8.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim8.Init.RepetitionCounter = 0;
+  htim8.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_PWM_Init(&htim8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterOutputTrigger2 = TIM_TRGO2_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim8, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
+  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
+  if (HAL_TIM_PWM_ConfigChannel(&htim8, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_ConfigChannel(&htim8, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
+  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
+  sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
+  sBreakDeadTimeConfig.DeadTime = 0;
+  sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
+  sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
+  sBreakDeadTimeConfig.BreakFilter = 0;
+  sBreakDeadTimeConfig.Break2State = TIM_BREAK2_DISABLE;
+  sBreakDeadTimeConfig.Break2Polarity = TIM_BREAK2POLARITY_HIGH;
+  sBreakDeadTimeConfig.Break2Filter = 0;
+  sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
+  if (HAL_TIMEx_ConfigBreakDeadTime(&htim8, &sBreakDeadTimeConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM8_Init 2 */
+
+  /* USER CODE END TIM8_Init 2 */
+  HAL_TIM_MspPostInit(&htim8);
+
+}
+
+/**
+  * @brief TIM9 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM9_Init(void)
+{
+
+  /* USER CODE BEGIN TIM9_Init 0 */
+
+  /* USER CODE END TIM9_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+
+  /* USER CODE BEGIN TIM9_Init 1 */
+
+  /* USER CODE END TIM9_Init 1 */
+  htim9.Instance = TIM9;
+  htim9.Init.Prescaler = 383;
+  htim9.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim9.Init.Period = 62499;
+  htim9.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim9.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim9) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim9, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM9_Init 2 */
+
+  /* USER CODE END TIM9_Init 2 */
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -807,7 +1141,8 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(US2_TRIG_GPIO_Port, US2_TRIG_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(US1_TRIG_GPIO_Port, US1_TRIG_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, US1_TRIG_Pin|GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13
+                          |GPIO_PIN_14, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(Debug_LED_GPIO_Port, Debug_LED_Pin, GPIO_PIN_RESET);
@@ -831,12 +1166,14 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(US2_TRIG_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : US1_TRIG_Pin */
-  GPIO_InitStruct.Pin = US1_TRIG_Pin;
+  /*Configure GPIO pins : US1_TRIG_Pin PE11 PE12 PE13
+                           PE14 */
+  GPIO_InitStruct.Pin = US1_TRIG_Pin|GPIO_PIN_11|GPIO_PIN_12|GPIO_PIN_13
+                          |GPIO_PIN_14;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(US1_TRIG_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pin : Debug_LED_Pin */
   GPIO_InitStruct.Pin = Debug_LED_Pin;

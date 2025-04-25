@@ -10,8 +10,8 @@
 #define LIN_ACC_NUMBER_OF_BYTES				4			// Number of bytes for linear acceleration data (2 bytes for X, 2 bytes for Y)
 #define EULER_NUMBER_OF_BYTES				6			// Number of bytes for Euler angles (2 bytes for heading, roll, and pitch each)
 
-// extern uint8_t		imu_readings[LIN_ACC_NUMBER_OF_BYTES + EULER_NUMBER_OF_BYTES];
-extern uint8_t		imu_readings[IMU_NUMBER_OF_BYTES];
+extern uint8_t		imu_readings[LIN_ACC_NUMBER_OF_BYTES + EULER_NUMBER_OF_BYTES];
+// extern uint8_t		imu_readings[IMU_NUMBER_OF_BYTES];
 
 void BNO055_Init(void);
 void BNO055_Init_I2C(I2C_HandleTypeDef* hi2c_device);
