@@ -1,0 +1,14 @@
+../Core/Src/main.c:82:6:Interpret_Commands	16	static
+../Core/Src/main.c:92:6:Send_to_Robot	24	static
+../Core/Src/main.c:112:6:Receive_from_Robot	8	static
+../Core/Src/main.c:117:6:Send_to_Jetson	24	static
+../Core/Src/main.c:138:6:Receive_from_Jetson	8	static
+../Core/Src/main.c:143:6:HAL_UART_TxCpltCallback	16	static
+../Core/Src/main.c:156:6:HAL_UART_RxCpltCallback	16	static
+../Core/Src/main.c:214:5:main	8	static
+../Core/Src/main.c:268:6:SystemClock_Config	88	static
+../Core/Src/main.c:323:13:MX_USART2_UART_Init	8	static
+../Core/Src/main.c:358:13:MX_USART3_UART_Init	8	static
+../Core/Src/main.c:393:13:MX_GPIO_Init	40	static
+../Core/Src/main.c:425:6:MPU_Config	24	static
+../Core/Src/main.c:456:6:Error_Handler	4	static,ignoring_inline_asm
