@@ -24,6 +24,7 @@
 #include "string.h"
 #include "i2c-lcd.h"
 #include "accel.h"
+#include "math.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -43,17 +44,17 @@
 #define BASE_STATE_BUSY 0
 #define BASE_STATE_READY 1
 
-#define TRIG_PORT_FRONT GPIOE
-#define TRIG_PIN_FRONT GPIO_PIN_8
+#define TRIG_PORT_FRONT GPIOC
+#define TRIG_PIN_FRONT GPIO_PIN_7
 
-#define TRIG_PORT_BACK GPIOC
-#define TRIG_PIN_BACK GPIO_PIN_7
+#define TRIG_PORT_BACK GPIOE
+#define TRIG_PIN_BACK GPIO_PIN_8
 
-#define TRIG_PORT_LEFT GPIOD
-#define TRIG_PIN_LEFT GPIO_PIN_13
+#define TRIG_PORT_LEFT GPIOA
+#define TRIG_PIN_LEFT GPIO_PIN_6
 
-#define TRIG_PORT_RIGHT GPIOA
-#define TRIG_PIN_RIGHT GPIO_PIN_6
+#define TRIG_PORT_RIGHT GPIOD
+#define TRIG_PIN_RIGHT GPIO_PIN_13
 
 #define LEFT_IC htim11
 #define LEFT_IC_CHANNEL TIM_CHANNEL_1
@@ -195,15 +196,20 @@ void Interpret_Commands(uint8_t *rx_buffer) {
 		requested_heading = (float)(rx_buffer[6]) * 360 / 255;
 
 		// MOVE!!
+		poll_IMU(&hi2c2, imu_readings);
+		euler_heading_raw = (((int16_t)((uint8_t *)(imu_readings))[5] << 8) | ((uint8_t *)(imu_readings))[4]);
+		tide_angle = ((float)(euler_heading_raw))/16.0f;
+
 		move(do_move, requested_heading);
+		Send_to_Base('0', move_success_string,1);
 
 		// Verify current heading is close to requested heading
-		if ((tide_angle >= requested_heading - 5) && ((tide_angle <= requested_heading + 5) || (requested_heading > 355))) {
+		/*if ((tide_angle >= requested_heading - 10) && ((tide_angle <= requested_heading + 10) || (requested_heading > 350))) {
 			Send_to_Base('0', move_success_string, 1);
 		}
 		else {
 			Send_to_Base('0', move_fail_string, 1);
-		}
+		}*/
 	}
 }
 
@@ -270,39 +276,49 @@ void poll_ultrasonic (void) {
 	// Front Sensor
 	idx = 0;
 	HAL_GPIO_WritePin(TRIG_PORT_FRONT, TRIG_PIN_FRONT, GPIO_PIN_SET);  // pull the TRIG pin HIGH
-	delay_in_us(10, &htim1);  // wait for 10 us
+	delay_in_us(10, &htim3);  // wait for 10 us
 	HAL_GPIO_WritePin(TRIG_PORT_FRONT, TRIG_PIN_FRONT, GPIO_PIN_RESET);  // pull the TRIG pin low
-	__HAL_TIM_ENABLE_IT(&htim1, TIM_IT_CC1);
+	__HAL_TIM_ENABLE_IT(&htim3, TIM_IT_CC1);
 	HAL_Delay(10);
 	while(is_first_captured != 0);
 
 	// Back Sensor
 	idx = 1;
-	HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_1);
+
 	HAL_GPIO_WritePin(TRIG_PORT_BACK, TRIG_PIN_BACK, GPIO_PIN_SET);  // pull the TRIG pin HIGH
-	delay_in_us(10, &htim3);  // wait for 10 us
+	delay_in_us(10, &htim1);  // wait for 10 us
 	HAL_GPIO_WritePin(TRIG_PORT_BACK, TRIG_PIN_BACK, GPIO_PIN_RESET);  // pull the TRIG pin low
-	__HAL_TIM_ENABLE_IT(&htim3, TIM_IT_CC1);
+	__HAL_TIM_ENABLE_IT(&htim1, TIM_IT_CC1);
 	HAL_Delay(10);
 	while(is_first_captured != 0);
 
 	// Left Sensor
 	idx = 2;
 	HAL_GPIO_WritePin(TRIG_PORT_LEFT, TRIG_PIN_LEFT, GPIO_PIN_SET);  // pull the TRIG pin HIGH
-	delay_in_us(10, &htim4);  // wait for 10 us
+	delay_in_us(10, &htim2);  // wait for 10 us
 	HAL_GPIO_WritePin(TRIG_PORT_LEFT, TRIG_PIN_LEFT, GPIO_PIN_RESET);  // pull the TRIG pin low
-	__HAL_TIM_ENABLE_IT(&htim4, TIM_IT_CC1);
+	__HAL_TIM_ENABLE_IT(&htim2, TIM_IT_CC1);
 	HAL_Delay(10);
 	while(is_first_captured != 0);
 
 	// Right Sensor
 	idx = 3;
 	HAL_GPIO_WritePin(TRIG_PORT_RIGHT, TRIG_PIN_RIGHT, GPIO_PIN_SET);  // pull the TRIG pin HIGH
-	delay_in_us(10, &htim2);  // wait for 10 us
+	delay_in_us(10, &htim4);  // wait for 10 us
 	HAL_GPIO_WritePin(TRIG_PORT_RIGHT, TRIG_PIN_RIGHT, GPIO_PIN_RESET);  // pull the TRIG pin low
-	__HAL_TIM_ENABLE_IT(&htim2, TIM_IT_CC1);
+	__HAL_TIM_ENABLE_IT(&htim4, TIM_IT_CC1);
 	HAL_Delay(10);
 	while(is_first_captured != 0);
+
+	// Display Detection Status on LCD Screen
+	lcd_put_cur(1, 2);
+	lcd_send_data(detection_status[0]);
+	lcd_put_cur(1, 6);
+	lcd_send_data(detection_status[1]);
+	lcd_put_cur(1, 10);
+	lcd_send_data(detection_status[2]);
+	lcd_put_cur(1, 14);
+	lcd_send_data(detection_status[3]);
 
 	// Set last bytes to '0'
 	detection_status[4] = '0';
@@ -362,11 +378,11 @@ void Start_Diff_PWM(void) {
 }
 
 void move(float x, float angle) {
-	while(angle - tide_angle > error_t) {
+	/*while(fabs(angle - tide_angle) > error_t) {
 		poll_IMU(&hi2c2, imu_readings);
 		euler_heading_raw = (((int16_t)((uint8_t *)(imu_readings))[5] << 8) | ((uint8_t *)(imu_readings))[4]);
 		tide_angle = ((float)(euler_heading_raw))/16.0f;
-		int angle_diff = angle - tide_angle;
+		float angle_diff = fabs(angle - tide_angle);
 		//assume within tolerance, not enough time in project to do otherwise
 		//if angle difference is positive, turn right
 		//if angle difference is negative, turn left
@@ -376,7 +392,7 @@ void move(float x, float angle) {
 				euler_heading_raw = (((int16_t)((uint8_t *)(imu_readings))[5] << 8) | ((uint8_t *)(imu_readings))[4]);
 				tide_angle = ((float)(euler_heading_raw))/16.0f;
 				motors_controller(1, -1);
-				angle_diff = angle - tide_angle;
+				angle_diff = fabs(angle - tide_angle);
 			}
 		}
 		else if(angle_diff > 0) {
@@ -385,10 +401,10 @@ void move(float x, float angle) {
 				euler_heading_raw = (((int16_t)((uint8_t *)(imu_readings))[5] << 8) | ((uint8_t *)(imu_readings))[4]);
 				tide_angle = ((float)(euler_heading_raw))/16.0f;
 				motors_controller(-1, 1);
-				angle_diff = angle - tide_angle;
+				angle_diff = fabs(angle - tide_angle);
 			}
 		}
-	}
+	}*/
 	//calculated equation. assume x is in 6 inch intervals
 	if(x == 1) {
 		motors_controller(1,1);
@@ -476,6 +492,7 @@ int main(void)
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
+  Start_Diff_PWM();
 
   /* USER CODE BEGIN Init */
 
@@ -504,20 +521,19 @@ int main(void)
   // Turn ON Debug LED
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, 1);
 
-  // TODO: Comment when not using LCD screen
+  // Comment when not using LCD screen
   lcd_init();
-  /*
+
+  // lcd_send_string("TID-E - Team 14");
+
+  // Display intial stuff
   lcd_send_string (" Px  Nx  Py  Ny");
   lcd_put_cur(1, 2);
   lcd_send_string("0   0   0   0");
-  */
-
-  // lcd_send_string("H=    R=    P=");
 
   // Start and configure IMU
   BNO055_Init_I2C(&hi2c2);
 
-  // TODO: Uncomment when testing with device comms
   // Start receiving from base
   Receive_from_Base();
 
